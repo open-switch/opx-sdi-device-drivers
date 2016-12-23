@@ -1,0 +1,13 @@
+Source: opx-sdi-device-drivers
+Section: net
+Priority: optional
+Maintainer: Dell <support@dell.com>
+Build-Depends: debhelper (>= 9), dh-autoreconf, libopx-common-dev,
+ libopx-logging-dev, libopx-sdi-api-dev, libopx-sdi-sys-dev ,libopx-sdi-framework-dev, libz-dev
+Standards-Version: 3.9.3
+
+Package: libopx-sdi-device-drivers1
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: This package contains the device driver plugin to be used with opx-sdi-sys package.
+
