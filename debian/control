@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Dell <support@dell.com>
 Build-Depends: debhelper (>= 9), dh-autoreconf, libopx-common-dev,
- libopx-logging-dev, libopx-sdi-api-dev, libopx-sdi-sys-dev ,libopx-sdi-framework-dev, libz-dev
+ libopx-logging-dev, libopx-sdi-api-dev, libopx-sdi-framework-dev, libz-dev
 Standards-Version: 3.9.3
 
 Package: libopx-sdi-device-drivers1
