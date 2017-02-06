@@ -215,7 +215,7 @@ static void sdi_onie_fill_vendor_extn(sdi_onie_tlv_field *tlv_fld,
                 entity_data->air_flow            = SDI_PWR_AIR_FLOW_REVERSE;
                 break;
             default:
-                err_mesg = "Invlaid value for PSU type in ONIE EEPROM vendor extension";
+                err_mesg = "Invalid value for PSU type in ONIE EEPROM vendor extension";
             }
             break;
             
