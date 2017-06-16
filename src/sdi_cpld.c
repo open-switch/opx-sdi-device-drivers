@@ -97,7 +97,7 @@
 
 /* cpld device driver registration function */
 static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
-                                     sdi_device_hdl_t* device_hdl);
+                                     sdi_device_hdl_t *device_hdl);
 
 /* cpld device driver initialization function */
 static t_std_error sdi_cpld_init(sdi_device_hdl_t device_hdl);
@@ -119,8 +119,7 @@ sdi_driver_t sdi_cpld_entry = {
  * return STD_ERR_OK on success, SDI_DEVICE_ERRNO on failure
  */
 static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
-                                     sdi_device_hdl_t* device_hdl)
-{
+                                     sdi_device_hdl_t *device_hdl) {
     char *node_attr = NULL;
     std_config_node_t cur_node = NULL;
     sdi_device_hdl_t dev_hdl = NULL;
@@ -131,33 +130,33 @@ static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
     sdi_cpld_pin_group_t *cpld_pin_group = NULL;
     sdi_cpld_dev_hdl_t cpld_dev_hdl = NULL;
 
-    dev_hdl = (sdi_device_hdl_t) calloc(sizeof(sdi_device_entry_t), 1);
+    dev_hdl = (sdi_device_hdl_t)calloc(sizeof(sdi_device_entry_t), 1);
     STD_ASSERT(dev_hdl != NULL);
 
-    cpld_dev_hdl = (sdi_cpld_dev_hdl_t) calloc(sizeof(sdi_cpld_device_t), 1);
+    cpld_dev_hdl = (sdi_cpld_dev_hdl_t)calloc(sizeof(sdi_cpld_device_t), 1);
     STD_ASSERT(cpld_dev_hdl != NULL);
 
     dev_hdl->bus_hdl = bus_handle;
 
     node_attr = std_config_attr_get(node, SDI_DEV_ATTR_INSTANCE);
     STD_ASSERT(node_attr != NULL);
-    dev_hdl->instance = (uint_t) strtoul (node_attr, NULL, 0);
+    dev_hdl->instance = (uint_t)strtoul(node_attr, NULL, 0);
 
     node_attr = std_config_attr_get(node, SDI_DEV_ATTR_ALIAS);
     if (node_attr == NULL) {
         snprintf(dev_hdl->alias, SDI_MAX_NAME_LEN, "sdi-cpld-%d",
-            dev_hdl->instance);
+                 dev_hdl->instance);
     } else {
-        safestrncpy(dev_hdl->alias,node_attr,SDI_MAX_NAME_LEN);
+        safestrncpy(dev_hdl->alias, node_attr, SDI_MAX_NAME_LEN);
     }
 
     node_attr = std_config_attr_get(node, SDI_DEV_ATTR_CPLD_START_ADDR);
     STD_ASSERT(node_attr != NULL);
-    cpld_dev_hdl->start_addr = (uint_t) strtoul (node_attr, NULL, 0);
+    cpld_dev_hdl->start_addr = (uint_t)strtoul(node_attr, NULL, 0);
 
     node_attr = std_config_attr_get(node, SDI_DEV_ATTR_CPLD_END_ADDR);
     STD_ASSERT(node_attr != NULL);
-    cpld_dev_hdl->end_addr = (uint_t) strtoul (node_attr, NULL, 0);
+    cpld_dev_hdl->end_addr = (uint_t)strtoul(node_attr, NULL, 0);
 
     STD_ASSERT(cpld_dev_hdl->start_addr < cpld_dev_hdl->end_addr);
 
@@ -165,7 +164,7 @@ static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
     if (node_attr == NULL) {
         cpld_dev_hdl->width = SDI_CPLD_DEFAULT_REGISTER_WIDTH;
     } else {
-        cpld_dev_hdl->width = (uint_t) strtoul (node_attr, NULL, 0);
+        cpld_dev_hdl->width = (uint_t)strtoul(node_attr, NULL, 0);
         STD_ASSERT(cpld_dev_hdl->width == SDI_CPLD_DEFAULT_REGISTER_WIDTH);
     }
 
@@ -176,10 +175,10 @@ static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
     if (((sdi_bus_hdl_t)bus_handle)->bus_type == SDI_I2C_BUS) {
         node_attr = std_config_attr_get(node, SDI_DEV_ATTR_ADDRESS);
         STD_ASSERT(node_attr != NULL);
-        dev_hdl->addr.i2c_addr.i2c_addr = (i2c_addr_t) strtoul(node_attr, NULL, 16);
+        dev_hdl->addr.i2c_addr.i2c_addr = (i2c_addr_t)strtoul(node_attr, NULL, 16);
         node_attr = std_config_attr_get(node, SDI_DEV_ATTR_16BIT_ADDR_MODE);
         if (node_attr != NULL) {
-            if (strcmp(node_attr, SDI_DEV_ATTR_ENABLED) == 0){
+            if (strcmp(node_attr, SDI_DEV_ATTR_ENABLED) == 0) {
                 dev_hdl->addr.i2c_addr.addr_mode_16bit = 1;
             }
         }
@@ -189,10 +188,10 @@ static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
     *device_hdl = dev_hdl;
 
     for (cur_node = std_config_get_child(node); cur_node != NULL;
-        cur_node = std_config_next_node(cur_node)) {
+         cur_node = std_config_next_node(cur_node)) {
 
         bus_driver = sdi_bus_get_symbol(cur_node);
-        STD_ASSERT (bus_driver != NULL);
+        STD_ASSERT(bus_driver != NULL);
 
         err = bus_driver->bus_register(cur_node, &bus);
         if (err != STD_ERR_OK) {
@@ -203,12 +202,12 @@ static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
 
         sdi_bus_enqueue_list(&dev_hdl->bus_list, bus);
         if (bus->bus_type == SDI_PIN_BUS) {
-            cpld_pin = (sdi_cpld_pin_t *) bus;
+            cpld_pin = (sdi_cpld_pin_t *)bus;
             cpld_pin->cpld_hdl = dev_hdl;
             STD_ASSERT(cpld_pin->addr >= cpld_dev_hdl->start_addr);
             STD_ASSERT(cpld_pin->addr <= cpld_dev_hdl->end_addr);
         } else if (bus->bus_type == SDI_PIN_GROUP_BUS) {
-            cpld_pin_group = (sdi_cpld_pin_group_t *) bus;
+            cpld_pin_group = (sdi_cpld_pin_group_t *)bus;
             cpld_pin_group->cpld_hdl = dev_hdl;
             STD_ASSERT(cpld_pin_group->start_addr >= cpld_dev_hdl->start_addr);
             STD_ASSERT(cpld_pin_group->start_addr <= cpld_dev_hdl->end_addr);
@@ -230,8 +229,7 @@ static t_std_error sdi_cpld_register(std_config_node_t node, void *bus_handle,
  * param[in] device_hdl - cpld device handle
  * param[in] STD_ERR_OK on success
  */
-static t_std_error sdi_cpld_init(sdi_device_hdl_t device_hdl)
-{
+static t_std_error sdi_cpld_init(sdi_device_hdl_t device_hdl) {
     sdi_init_bus_for_each_bus_in_list(&device_hdl->bus_list,
                                       sdi_bus_init, NULL);
     return STD_ERR_OK;

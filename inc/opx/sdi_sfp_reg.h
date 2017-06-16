@@ -64,8 +64,7 @@ typedef enum {
     SFP_VENDOR_DATE_OFFSET          = 84,
     SFP_DIAG_MON_TYPE_OFFSET        = 92,
     SFP_ENHANCED_OPTIONS_OFFSET     = 93,
-    SFP_CC_EXT_OFFSET               = 95,
-    SFP_DELL_PRODUCT_ID_OFFSET         = 96,
+    SFP_CC_EXT_OFFSET               = 95
 } sfp_reg_offset_t;
 
 
@@ -203,10 +202,6 @@ typedef enum {
 #define SFP_TX_DISABLE_OFFSET        0x40
 #define SFP_TX_FAULT_OFFSET            0x4
 
-#define SDI_SFP_MAGIC_KEY_SIZE            2
-#define SDI_SFP_DELL_PRODUCT_ID_MAGIC0    0x0F
-#define SDI_SFP_DELL_PRODUCT_ID_MAGIC1    0x10
-
 /**
  * @def Attribute used to define the i2c address of Copper SFP PHY.
  */
@@ -224,13 +219,25 @@ typedef enum {
 #define SFP_COPPER_CTRL_LE             (1 << 14) /* Loopback enable */
 #define SFP_COPPER_CTRL_RESET          (1 << 15) /* PHY reset */
 
+/*
+ * CuSFP status register values.
+ */
+
+#define SFP_COPPER_STAT_LA                 (1 << 2) /* Link Active */
+#define SFP_COPPER_EXT_STAT_LA             (1 << 10) /* Real time Link Active */
 /** CuSFP registers **/
 #define SFP_COPPER_CTRL_REG            0x00
 #define SFP_COPPER_STAT_REG            0x01
 #define SFP_COPPER_ANA_REG             0x04
 #define SFP_COPPER_GB_CTRL_REG         0x09
+#define SFP_COPPER_PHY_CTRL_REG        0x10
 #define SFP_COPPER_EXT_STATUS_1_REG    0x11
 #define SFP_COPPER_EXT_STATUS_2_REG    0x1B
+#define SFP_COPPER_EXT_ADDRESS_REG     0x1D
+#define SFP_COPPER_EXT_PHY_CTRL_REG    0x1E
+
+/** SFP_COPPER_PHY_CTRL_REG bits **/
+#define SFP_COPPER_PHY_CTRL_MAC_INT_PD  (1 << 3) /* MAC Interface Power down */
 /** MII link advertisement registers */
 #define SFP_COPPER_ANA_ASF             (1 << 0)/* Advertise Selector Field */
 #define SFP_COPPER_ANA_HD_10           (1 << 5)/* Half duplex 10Mb/s supported */

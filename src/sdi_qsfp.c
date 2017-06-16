@@ -284,11 +284,9 @@ static media_ctrl_t qsfp_media = {
     .cdr_status_set = sdi_qsfp_cdr_status_set,
     .cdr_status_get = sdi_qsfp_cdr_status_get,
     .speed_get = sdi_qsfp_speed_get,
-    .is_dell_qualified = sdi_qsfp_is_dell_qualified,
     .parameter_get = sdi_qsfp_parameter_get,
     .vendor_info_get = sdi_qsfp_vendor_info_get,
     .transceiver_code_get = sdi_qsfp_transceiver_code_get,
-    .dell_product_info_get = sdi_qsfp_dell_product_info_get,
     .threshold_get = sdi_qsfp_threshold_get,
     .module_monitor_threshold_get = sdi_qsfp_module_monitor_threshold_get,
     .channel_monitor_threshold_get = sdi_qsfp_channel_monitor_threshold_get,
@@ -302,7 +300,10 @@ static media_ctrl_t qsfp_media = {
     .media_phy_autoneg_set = sdi_qsfp_phy_autoneg_set,
     .media_phy_speed_set = sdi_qsfp_phy_speed_set,
     .media_phy_mode_set = sdi_qsfp_phy_mode_set,
-    .wavelength_set = sdi_qsfp_wavelength_set
+    .wavelength_set = sdi_qsfp_wavelength_set,
+    .media_phy_link_status_get = NULL,
+    .media_phy_power_down_enable = NULL,
+    .media_phy_serdes_control = NULL
 };
 
 /*

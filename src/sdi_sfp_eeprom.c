@@ -50,6 +50,7 @@
    an-2036 app note from Mavell give below magic value to enable
    SGMII mode for phy device */
 #define PHY_SGMII_MODE 0x9084
+#define MIN(x,y) ((x) < (y) ? (x) : (y))
 
  /*SFP parameter sizes */
 enum {
@@ -93,6 +94,7 @@ static sdi_sfp_reg_info_t param_reg_info[] = {
     { SFP_MAX_BITRATE_OFFSET, SDI_SFP_BYTE_SIZE } , /* for SDI_MEDIA_MAX_BITRATE */
     { SFP_MIN_BITRATE_OFFSET, SDI_SFP_BYTE_SIZE }, /* for SDI_MEDIA_MIN_BITRATE */
     { SFP_EXT_COMPLIANCE_CODE_OFFSET, SDI_SFP_BYTE_SIZE}, /* for SDI_MEDIA_EXT_COMPLIANCE_CODE */
+    { 0, 0 }, /* For SDI_FREE_SIDE_DEV_PROP , not applicable for SFP */
 };
 
 /* vendor register information structure. Parameters in this structure should be
@@ -1108,54 +1110,6 @@ t_std_error  sdi_sfp_speed_get(sdi_resource_hdl_t resource_hdl,
 }
 
 /**
- * Check whether the specified SFP is dell qualified
- * resource_hdl[in] - handle of the resource
- * status[out]    - true if optics is dell qualified else false
- * return           - t_std_error
- */
-t_std_error sdi_sfp_is_dell_qualified (sdi_resource_hdl_t resource_hdl,
-                                       bool *status)
-{
-    sdi_device_hdl_t sfp_device = NULL;
-    sfp_device_t *sfp_priv_data = NULL;
-    t_std_error rc = STD_ERR_OK;
-    uint8_t magic_key[SDI_SFP_MAGIC_KEY_SIZE] = { 0 };
-
-    STD_ASSERT(resource_hdl != NULL);
-    STD_ASSERT(status != NULL);
-
-    sfp_device = (sdi_device_hdl_t)resource_hdl;
-    sfp_priv_data = (sfp_device_t *)sfp_device->private_data;
-    STD_ASSERT(sfp_priv_data != NULL);
-
-    rc = sdi_sfp_module_select(sfp_device);
-    if(rc != STD_ERR_OK) {
-        return rc;
-    }
-
-    rc = sdi_smbus_read_word(sfp_device->bus_hdl, sfp_device->addr.i2c_addr,
-                             SFP_DELL_PRODUCT_ID_OFFSET, (uint16_t *)magic_key, SDI_I2C_FLAG_NONE);
-    if (rc != STD_ERR_OK){
-        SDI_DEVICE_ERRMSG_LOG("sfp smbus read failed at addr : %d for %s rc : %d",
-                              sfp_device->addr, sfp_device->alias, rc);
-    }
-
-    sdi_sfp_module_deselect(sfp_priv_data);
-
-    if(rc == STD_ERR_OK) {
-        if ( (magic_key[0] == SDI_SFP_DELL_PRODUCT_ID_MAGIC0) &&
-             (magic_key[1] == SDI_SFP_DELL_PRODUCT_ID_MAGIC1) )
-        {
-            *status = true;
-        } else {
-            *status = false;
-        }
-    }
-
-    return rc;
-}
-
-/**
  * Reads the requested parameter value from eeprom
  * resource_hdl[in] - handle of the media resource
  * param[in]        - parametr type that is of interest(e.g wavelength, maximum
@@ -1290,7 +1244,7 @@ t_std_error sdi_sfp_vendor_info_get(sdi_resource_hdl_t resource_hdl,
                 (*(buf_ptr - 1) == SDI_SFP_PADDING_CHAR)
                 || (*(buf_ptr - 1) == 0x20); buf_ptr--);
          *buf_ptr = '\0';
-         snprintf(vendor_info, data_len, "%s", data_buf);
+         memcpy(vendor_info, data_buf, MIN((buf_ptr-data_buf)+1, size));
     }
     return rc;
 }
@@ -1352,43 +1306,6 @@ t_std_error sdi_sfp_transceiver_code_get(sdi_resource_hdl_t resource_hdl,
     transceiver_info->sfp_descr.sdi_sfp_fc_media = xvr_buff[6];
     transceiver_info->sfp_descr.sdi_sfp_fc_speed = xvr_buff[7];
 
-    return rc;
-}
-
-/**
- * Read the dell product information
- * resource_hdl[in] - Handle of the resource
- * info[out]        - dell product information
- * return           - standard t_std_error
- */
-t_std_error sdi_sfp_dell_product_info_get(sdi_resource_hdl_t resource_hdl,
-                                          sdi_media_dell_product_info_t *info)
-{
-    sdi_device_hdl_t sfp_device = NULL;
-    sfp_device_t *sfp_priv_data = NULL;
-    t_std_error rc = STD_ERR_OK;
-
-    STD_ASSERT(resource_hdl != NULL);
-    STD_ASSERT(info != NULL);
-
-    sfp_device = (sdi_device_hdl_t)resource_hdl;
-    sfp_priv_data = (sfp_device_t *)sfp_device->private_data;
-    STD_ASSERT(sfp_priv_data != NULL);
-
-    rc = sdi_sfp_module_select(sfp_device);
-    if(rc != STD_ERR_OK) {
-        return rc;
-    }
-
-    rc = sdi_smbus_read_multi_byte(sfp_device->bus_hdl, sfp_device->addr.i2c_addr,
-                                   SFP_DELL_PRODUCT_ID_OFFSET, (uint8_t *)info, sizeof(sdi_media_dell_product_info_t),
-                                   SDI_I2C_FLAG_NONE);
-
-    if (rc != STD_ERR_OK) {
-        SDI_DEVICE_ERRMSG_LOG("sfp smbus read failed at addr : %d for %s rc : %d",
-                              sfp_device->addr, sfp_device->alias, rc);
-    }
-    sdi_sfp_module_deselect(sfp_priv_data);
     return rc;
 }
 
@@ -2074,6 +1991,105 @@ t_std_error sdi_sfp_phy_speed_set(sdi_resource_hdl_t resource_hdl, uint_t channe
     }
 
     rc = sdi_cusfp_phy_speed_set(sfp_device, speed);
+    sdi_sfp_module_deselect(sfp_priv_data);
+
+    return rc;
+}
+
+/**
+ * Get media PHY link status.
+ * resource_hdl[in] - Handle of the resource
+ * channel[in]      - channel number 
+ * type             - media type
+ * status           - true - link up, false - link down
+ * return           - t_std_error
+ */
+t_std_error sdi_sfp_phy_link_status_get (sdi_resource_hdl_t resource_hdl, uint_t channel,
+                                         sdi_media_type_t type, bool *status)
+{
+    sdi_device_hdl_t sfp_device = NULL;
+    sfp_device_t *sfp_priv_data = NULL;
+    t_std_error rc = STD_ERR_OK;
+
+
+    STD_ASSERT(resource_hdl != NULL);
+    sfp_device = (sdi_device_hdl_t)resource_hdl;
+    sfp_priv_data = (sfp_device_t *)sfp_device->private_data;
+    STD_ASSERT(sfp_priv_data != NULL);
+
+    rc = sdi_sfp_module_select(sfp_device);
+    if(rc != STD_ERR_OK) {
+        return rc;
+    }
+
+    rc = sdi_cusfp_phy_link_status_get(sfp_device, status);
+
+    sdi_sfp_module_deselect(sfp_priv_data);
+
+    return rc;
+}
+
+/**
+ * Set power down state (enable/disable) on media PHY.
+ * resource_hdl[in] - Handle of the resource
+ * channel[in]      - channel number 
+ * type             - media type
+ * enable           - true - power down, false - power up
+ * return           - t_std_error
+ */
+
+t_std_error sdi_sfp_phy_power_down_enable (sdi_resource_hdl_t resource_hdl, uint_t channel,
+                                           sdi_media_type_t type, bool enable)
+{
+    sdi_device_hdl_t sfp_device = NULL;
+    sfp_device_t *sfp_priv_data = NULL;
+    t_std_error rc = STD_ERR_OK;
+
+
+    STD_ASSERT(resource_hdl != NULL);
+    sfp_device = (sdi_device_hdl_t)resource_hdl;
+    sfp_priv_data = (sfp_device_t *)sfp_device->private_data;
+    STD_ASSERT(sfp_priv_data != NULL);
+
+    rc = sdi_sfp_module_select(sfp_device);
+    if(rc != STD_ERR_OK) {
+        return rc;
+    }
+
+    rc = sdi_cusfp_phy_power_down_enable(sfp_device, enable);
+
+    sdi_sfp_module_deselect(sfp_priv_data);
+
+    return rc;
+}
+
+/**
+ * Control (enable/disable) Fiber/Serdes tx and RX on media PHY.
+ * resource_hdl[in] - Handle of the resource
+ * channel[in]      - channel number 
+ * type             - media type
+ * enable           - true - Enable Serdes, false - Disable Serdes
+ * return           - t_std_error
+ */
+
+t_std_error sdi_sfp_phy_serdes_control (sdi_resource_hdl_t resource_hdl, uint_t channel,
+                                        sdi_media_type_t type, bool enable)
+{
+    sdi_device_hdl_t sfp_device = NULL;
+    sfp_device_t *sfp_priv_data = NULL;
+    t_std_error rc = STD_ERR_OK;
+
+    STD_ASSERT(resource_hdl != NULL);
+    sfp_device = (sdi_device_hdl_t)resource_hdl;
+    sfp_priv_data = (sfp_device_t *)sfp_device->private_data;
+    STD_ASSERT(sfp_priv_data != NULL);
+
+    rc = sdi_sfp_module_select(sfp_device);
+    if(rc != STD_ERR_OK) {
+        return rc;
+    }
+
+    rc = sdi_cusfp_phy_serdes_control(sfp_device, enable);
 
     sdi_sfp_module_deselect(sfp_priv_data);
 

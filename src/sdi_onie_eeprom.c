@@ -132,6 +132,8 @@ static void sdi_onie_fill_vendor_extn(sdi_onie_tlv_field *tlv_fld,
     char delimiter[] = SDI_VENDOR_EXTN_DELIMITER;
     char vendor_extn[SDI_MAX_TLV_VALUE_LEN] = {0};
     static const uint8_t iana_num[] = {0x00, 0x00, 0x02, 0xa2, 0x2d};
+    static const char iana_ascii[] = "674-";
+    uint_t iana_len = 0;
 
     if (!(parser_type == SDI_ONIE_FAN_EEPROM ||
           parser_type == SDI_ONIE_PSU_EEPROM
@@ -148,24 +150,33 @@ static void sdi_onie_fill_vendor_extn(sdi_onie_tlv_field *tlv_fld,
     
     /* We need to understand two formats for the vendor extension (in regexp lingo):
 
-       IANA number<0x000002a2>-((PSU)|(FANTRAY))-[0-3]-MAXRPM-[0-9]+-FANS-[0-9]+-FF
+       674-((PSU)|(FANTRAY))-[0-3]-MAXRPM-[0-9]+-FANS-[0-9]+-FF
+       or IANA number<0x000002a2>-((PSU)|(FANTRAY))-[0-3]-MAXRPM-[0-9]+-FANS-[0-9]+-FF
 
        and
 
-       IANA number<0x000002a2>-[0-3]-[0-9]+-[0-9]+-FF, where the first number is the type of PSU/fan-tray,
+       674-[0-3]-[0-9]+-[0-9]+-FF, where the first number is the type of PSU/fan-tray,
+       or IANA number<0x000002a2>-[0-3]-[0-9]+-[0-9]+-FF, where the first number is the type of PSU/fan-tray,
        the second number is the number of fans, and the third number is the max fan RPM.
      */
 
-    if (memcmp(vendor_extn, iana_num, sizeof(iana_num)) != 0) {
+    if (memcmp(vendor_extn, iana_num, sizeof(iana_num)) == 0) {
 
+        iana_len = sizeof(iana_num);
+    } else if (strncmp(vendor_extn, iana_ascii, strlen(iana_ascii)) == 0) {
+
+        iana_len = strlen(iana_ascii);
+    } else {
         SDI_DEVICE_ERRMSG_LOG("%s", invalid_fmt);
         return;
     }
 
-    if (!std_parse_string(&handle, &vendor_extn[sizeof(iana_num)], delimiter)) {
+    if (!std_parse_string(&handle, &vendor_extn[iana_len], delimiter)) {
         SDI_DEVICE_ERRNO_LOG();
         return;
     }
+
+
 
     do {
         /* Skip "PSU" or "FANTRAY", if present;

@@ -30,6 +30,17 @@
 #include "sdi_media.h"
 
 /**
+ * @media qsfp category
+ */
+
+typedef enum qsfp_category {
+    SDI_CATEGORY_QSFP,
+    SDI_CATEGORY_QSFPPLUS,
+    SDI_CATEGORY_QSFP28,
+    SDI_CATEGORY_QSFPDD,
+} qsfp_category_t;
+
+/**
  * @struct qsfp_device_t
  * QSFP device private data
  */
@@ -57,6 +68,8 @@ typedef struct qsfp_device {
                                     QSA adapter in qsfp port */
     sdi_device_hdl_t  sfp_device;/**<sfp device callback data when QSA adapter is
                                    used to plugin sfp/sfp+ media*/
+    qsfp_category_t  mod_category; /**<media category to distinguish between
+                                     QSFP/QSFPPLUS/QSFP28/QSFPDD */
 } qsfp_device_t;
 
 /**
@@ -139,15 +152,6 @@ t_std_error sdi_qsfp_speed_get(sdi_resource_hdl_t resource_hdl,
                                sdi_media_speed_t *speed);
 
 /**
- * @brief Check whether the specified qsfp is dell qualified.
- * @param[in] resource_hdl - handle of the qsfp
- * @param[out] status - true if optics is dell qualified else false
- * @return - standard @ref t_std_error
- */
-t_std_error sdi_qsfp_is_dell_qualified (sdi_resource_hdl_t resource_hdl,
-                                        bool *status);
-
-/**
 * @brief Reads the parameter value from eeprom
 * @param[in] resource_hdl - handle of the qsfp
 * @param[in] param_type - parameter type.
@@ -177,15 +181,6 @@ t_std_error sdi_qsfp_vendor_info_get(sdi_resource_hdl_t resource_hdl,
  */
 t_std_error sdi_qsfp_transceiver_code_get(sdi_resource_hdl_t resource_hdl,
                                           sdi_media_transceiver_descr_t *transceiver_info);
-
-/**
- * @brief Get the dell product information
- * @param resource_hdl[in] - Handle of the resource
- * @param info[out] - Dell product Identification data
- * @return - standard @ref t_std_error
- */
-t_std_error sdi_qsfp_dell_product_info_get(sdi_resource_hdl_t resource_hdl,
-                                           sdi_media_dell_product_info_t *info);
 
 /**
  * @brief Get the alarm and warning threshold values

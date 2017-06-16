@@ -272,14 +272,14 @@ static t_std_error sdi_max6699_status_get(void *resource_hdl, bool *status)
 
     /*Read the fault status register and check for the specific sensor fault*/
     rc = sdi_smbus_read_byte(dev_hdl->bus_hdl, dev_hdl->addr.i2c_addr,
-                             MAX6699_STATUS_3_REG, &buf, SDI_I2C_FLAG_NONE);
+                             MAX6699_STATUS_1_REG, &buf, SDI_I2C_FLAG_NONE);
     if(rc != STD_ERR_OK) {
         SDI_DEVICE_ERRMSG_LOG("max6699 read failure at addr: %d rc: %d",
                               dev_hdl->addr.i2c_addr.i2c_addr,rc);
         return rc;
     }
     /* fault bit set to 1 if respective diode is fault */
-    *status = ( (STD_BIT_TEST(buf, status_bit_mask[sensor_id])) ? false : true );
+    *status = ( (STD_BIT_TEST(buf, status_bit_mask[sensor_id])) ? true : false );
 
     return rc;
 }

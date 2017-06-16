@@ -1,3 +1,11 @@
+opx-sdi-device-drivers (1.5.0) unstable; urgency=medium
+
+  * Feature: Added support for optical media adapter types (QSFP28-DD, depopulated QSFP28-DD, SFP28)
+  * Feature: Added support for vendor hardware
+  * Bugfix: Miscellaneous bug fixes
+
+ -- Dell EMC <ops-dev@lists.openswitch.net>  Fri, 16 Jun 2017 14:52:28 -0800
+
 opx-sdi-device-drivers (1.0.1) unstable; urgency=medium
 
   * Initial release.

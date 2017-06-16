@@ -54,6 +54,7 @@ typedef enum {
     QSFP_TX4_POWER_BIAS_OFFSET      = 48,
     QSFP_TX_CONTROL_OFFSET          = 86,
     QSFP_CDR_CONTROL_OFFSET         = 98,
+    QSFP_FREE_SIDE_DEV_PROP_OFFSET  = 113,
     QSFP_PAGE_SELECT_BYTE_OFFSET    = 127,
     QSFP_IDENTIFIER_OFFSET          = 128,
     QSFP_EXT_IDENTIFIER_OFFSET      = 129,
@@ -83,9 +84,7 @@ typedef enum {
     QSFP_VENDOR_DATE_OFFSET         = 212,
     QSFP_DIAG_MON_TYPE_OFFSET       = 220,
     QSFP_ENHANCED_OPTIONS_OFFSET    = 221,
-    QSFP_CC_EXT_OFFSET              = 223,
-    QSFP_DELL_PRODUCT_ID_OFFSET     = 240,
-    QSFP_DELL_PRODUCT_ID_OFFSET_SEC = 248,
+    QSFP_CC_EXT_OFFSET              = 223
 } qsfp_reg_offset_t;
 
 /* Table 46 — Module and Channel Thresholds (Page 03) */
@@ -108,6 +107,88 @@ typedef enum {
     QSFP_TX_BIAS_LOW_WARNING_THRESHOLD_OFFSET     = 190,
 } qsfp_page3_reg_offset_t;
 
+/* QSFP-DD register offsets */
+typedef enum {
+    QSFP_DD_CHANNEL_TX_LOS_INDICATOR             = 3,
+    QSFP_DD_CHANNEL_RX_LOS_INDICATOR             = 4,
+    QSFP_DD_CHANNEL_TX_CDR_LOL_INDICATOR         = 5,
+    QSFP_DD_CHANNEL_RX_CDR_LOL_INDICATOR         = 6,
+    QSFP_DD_CHANNEL_TXFAULT_INDICATOR            = 7,
+    QSFP_DD_TEMP_INTERRUPT_OFFSET                = 8,
+    QSFP_DD_VOLT_INTERRUPT_OFFSET                = 9,
+    QSFP_DD_RX_POWER_LW_INTERRUPT_OFFSET         = 10,
+    QSFP_DD_RX_POWER_LA_INTERRUPT_OFFSET         = 11,
+    QSFP_DD_RX_POWER_HA_INTERRUPT_OFFSET         = 12,
+    QSFP_DD_TX_BIAS_LA_INTERRUPT_OFFSET          = 13,
+    QSFP_DD_TX_BIAS_HA_INTERRUPT_OFFSET          = 14,
+    QSFP_DD_TX_POWER_LA_INTERRUPT_OFFSET         = 15,
+    QSFP_DD_TX_POWER_HA_INTERRUPT_OFFSET         = 16,
+    QSFP_DD_TEMPERATURE_OFFSET                   = 22,
+    QSFP_DD_TEMPERATURE2_OFFSET                  = 24,
+    QSFP_DD_VOLTAGE_OFFSET                       = 26,
+    QSFP_DD_RX1_POWER_OFFSET                     = 34,
+    QSFP_DD_RX2_POWER_OFFSET                     = 36,
+    QSFP_DD_RX3_POWER_OFFSET                     = 38,
+    QSFP_DD_RX4_POWER_OFFSET                     = 40,
+    QSFP_DD_RX5_POWER_OFFSET                     = 42,
+    QSFP_DD_RX6_POWER_OFFSET                     = 44,
+    QSFP_DD_RX7_POWER_OFFSET                     = 46,
+    QSFP_DD_RX8_POWER_OFFSET                     = 48,
+    QSFP_DD_TX1_BIAS_OFFSET                      = 50,
+    QSFP_DD_TX2_BIAS_OFFSET                      = 52,
+    QSFP_DD_TX3_BIAS_OFFSET                      = 54,
+    QSFP_DD_TX4_BIAS_OFFSET                      = 56,
+    QSFP_DD_TX5_BIAS_OFFSET                      = 58,
+    QSFP_DD_TX6_BIAS_OFFSET                      = 60,
+    QSFP_DD_TX7_BIAS_OFFSET                      = 62,
+    QSFP_DD_TX8_BIAS_OFFSET                      = 64,
+    QSFP_DD_TX1_POWER_OFFSET                     = 66,
+    QSFP_DD_TX2_POWER_OFFSET                     = 68,
+    QSFP_DD_TX3_POWER_OFFSET                     = 70,
+    QSFP_DD_TX4_POWER_OFFSET                     = 72,
+    QSFP_DD_TX5_POWER_OFFSET                     = 74,
+    QSFP_DD_TX6_POWER_OFFSET                     = 76,
+    QSFP_DD_TX7_POWER_OFFSET                     = 78,
+    QSFP_DD_TX8_POWER_OFFSET                     = 80,
+    QSFP_DD_TX_CONTROL_OFFSET                    = 84,
+    QSFP_DD_TX_CDR_CONTROL_OFFSET                = 90,
+    QSFP_DD_RX_CDR_CONTROL_OFFSET                = 91,
+
+} qsfp_dd_reg_offset_t;
+
+typedef enum {
+    QSFP_DD_TEMP_HIGH_ALARM_THRESHOLD_OFFSET         = 128,
+    QSFP_DD_TEMP_LOW_ALARM_THRESHOLD_OFFSET          = 130,
+    QSFP_DD_TEMP_HIGH_WARNING_THRESHOLD_OFFSET       = 132,
+    QSFP_DD_TEMP_LOW_WARNING_THRESHOLD_OFFSET        = 134,
+    QSFP_DD_TEMP2_HIGH_ALARM_THRESHOLD_OFFSET        = 136,
+    QSFP_DD_TEMP2_LOW_ALARM_THRESHOLD_OFFSET         = 138,
+    QSFP_DD_TEMP2_HIGH_WARNING_THRESHOLD_OFFSET      = 140,
+    QSFP_DD_TEMP2_LOW_WARNING_THRESHOLD_OFFSET       = 142,
+    QSFP_DD_VOLT_HIGH_ALARM_THRESHOLD_OFFSET         = 144,
+    QSFP_DD_VOLT_LOW_ALARM_THRESHOLD_OFFSET          = 146,
+    QSFP_DD_VOLT_HIGH_WARNING_THRESHOLD_OFFSET       = 148,
+    QSFP_DD_VOLT_LOW_WARNING_THRESHOLD_OFFSET        = 150,
+    QSFP_DD_VOLT2_HIGH_ALARM_THRESHOLD_OFFSET        = 152,
+    QSFP_DD_VOLT2_LOW_ALARM_THRESHOLD_OFFSET         = 154,
+    QSFP_DD_VOLT2_HIGH_WARNING_THRESHOLD_OFFSET      = 156,
+    QSFP_DD_VOLT2_LOW_WARNING_THRESHOLD_OFFSET       = 158,
+    QSFP_DD_TEC_CURRENT_HIGH_ALARM_THRESHOLD_OFFSET  = 160,
+    QSFP_DD_RX_PWR_HIGH_ALARM_THRESHOLD_OFFSET       = 176,
+    QSFP_DD_RX_PWR_LOW_ALARM_THRESHOLD_OFFSET        = 178,
+    QSFP_DD_RX_PWR_HIGH_WARNING_THRESHOLD_OFFSET     = 180,
+    QSFP_DD_RX_PWR_LOW_WARNING_THRESHOLD_OFFSET      = 182,
+    QSFP_DD_TX_BIAS_HIGH_ALARM_THRESHOLD_OFFSET      = 184,
+    QSFP_DD_TX_BIAS_LOW_ALARM_THRESHOLD_OFFSET       = 186,
+    QSFP_DD_TX_BIAS_HIGH_WARNING_THRESHOLD_OFFSET    = 188,
+    QSFP_DD_TX_BIAS_LOW_WARNING_THRESHOLD_OFFSET     = 190,
+    QSFP_DD_TX_PWR_HIGH_ALARM_THRESHOLD_OFFSET       = 192,
+    QSFP_DD_TX_PWR_LOW_ALARM_THRESHOLD_OFFSET        = 194,
+    QSFP_DD_TX_PWR_HIGH_WARNING_THRESHOLD_OFFSET     = 196,
+    QSFP_DD_TX_PWR_LOW_WARNING_THRESHOLD_OFFSET      = 198,
+
+} qsfp_dd_page3_reg_offset_t;
+
 
 /* Table 18 - Status Indicators (Page A0) */
 #define QSFP_FLAT_MEM_BIT_OFFSET    2
@@ -115,6 +196,8 @@ typedef enum {
 /* Table 19 — Channel status Interrupt Flags (Page A0) */
 #define QSFP_TX_LOS_BIT_OFFSET  0x10
 #define QSFP_RX_LOS_BIT_OFFSET  0x01
+#define QSFP_DD_TX_LOS_BIT_OFFSET  0x01
+#define QSFP_DD_RX_LOS_BIT_OFFSET  0x01
 
 /* Table 20 - Module Monitor Interrupt Flags (Page A0) */
 #define QSFP_TEMP_HIGH_ALARM_FLAG    (1 << 7) /* 0x80 */
@@ -162,6 +245,8 @@ typedef enum {
 
 #define QSFP_TX_CDR_CONTROL_BIT(channel)  (channel + 4)
 #define QSFP_RX_CDR_CONTROL_BIT(channel)  (channel)
+#define QSFP_DD_TX_CDR_CONTROL_BIT(channel)  (channel)
+#define QSFP_DD_RX_CDR_CONTROL_BIT(channel)  (channel)
 
 /* Table 39 — Option Values (Address 195) (Page 00) */
 #define QSFP_TX_DISABLE_BIT_OFFSET  4
@@ -169,11 +254,5 @@ typedef enum {
 
 #define QSFP_WAVELENGTH_DIVIDER             20
 #define QSFP_WAVELENGTH_TOLERANCE_DIVIDER   200
-
-#define SDI_QSFP_MAGIC_KEY_SIZE            2
-#define SDI_QSFP_DELL_PRODUCT_ID_MAGIC0    0x0F
-#define SDI_QSFP_DELL_PRODUCT_ID_MAGIC1    0x10
-
-#define SDI_QSFP28_DELL_PRODUCT_ID_MAGIC0  0xDF
 
 #endif

@@ -199,15 +199,6 @@ t_std_error sdi_sfp_speed_get(sdi_resource_hdl_t resource_hdl,
                               sdi_media_speed_t *speed);
 
 /**
- * @brief Check whether the specified sfp is dell qualified.
- * @param[in] resource_hdl - handle of the sfp
- * @param[out] status - true if optics is dell qualified else false
- * @return - standard @ref t_std_error
- */
-t_std_error sdi_sfp_is_dell_qualified (sdi_resource_hdl_t resource_hdl,
-                                       bool *status);
-
-/**
 * @brief Reads the parameter value from eeprom
 * @param[in] resource_hdl - handle of the sfp
 * @param[in] param_type - parameter type.
@@ -237,15 +228,6 @@ t_std_error sdi_sfp_vendor_info_get(sdi_resource_hdl_t resource_hdl,
  */
 t_std_error sdi_sfp_transceiver_code_get(sdi_resource_hdl_t resource_hdl,
                                          sdi_media_transceiver_descr_t *transceiver_info);
-
-/**
- * @brief Get the dell product information
- * @param resource_hdl[in] - Handle of the resource
- * @param info[out] - Dell product Identification data
- * @return - standard @ref t_std_error
- */
-t_std_error sdi_sfp_dell_product_info_get(sdi_resource_hdl_t resource_hdl,
-                                          sdi_media_dell_product_info_t *info);
 
 /**
  * @brief Get the alarm and warning thresholds for the given optic
@@ -391,5 +373,40 @@ t_std_error sdi_sfp_module_init (sdi_resource_hdl_t resource_hdl, bool pres);
  * @param[in]  - wavelength value
  */
 t_std_error sdi_sfp_wavelength_set (sdi_resource_hdl_t resource_hdl, float value);
+/**
+ * @brief Api to get link status from media PHY.
+ * @param[in] resource_hdl - handle to media
+ * @param[in] channel - channel number, 0 is valid for SFP
+ * @param[in] type - Media type.
+ * param[out] status - true when link is up, false when link is down
+ * @return - standard @ref t_std_error
+ *
+ */
+t_std_error sdi_sfp_phy_link_status_get (sdi_resource_hdl_t resource_hdl, uint_t channel,
+                                         sdi_media_type_t type, bool *status);
+
+/**
+ * @brief Api to power down enable/disable on media PHY.
+ * @param[in] resource_hdl - handle to media
+ * @param[in] channel - channel number, 0 is valid for SFP
+ * @param[in] type - Media type.
+ * @param[in] enable - true power down media PHY, false - power up media PHY.
+ * @return - standard @ref t_std_error
+ *
+ */
+t_std_error sdi_sfp_phy_power_down_enable (sdi_resource_hdl_t resource_hdl, uint_t channel,
+                                           sdi_media_type_t type, bool enable);
+
+/**
+ * @brief Api to enable/disable Fiber/Serdes TX and RX on media PHY.
+ * @param[in] resource_hdl - handle to media
+ * @param[in] channel - channel number, 0 is valid for SFP
+ * @param[in] type - Media type.
+ * @param[in] enable - true enable Serdes, false - Disable Serdes.
+ * @return - standard @ref t_std_error
+ *
+ */
+t_std_error sdi_sfp_phy_serdes_control (sdi_resource_hdl_t resource_hdl, uint_t channel,
+                                        sdi_media_type_t type, bool enable);
 
 #endif

@@ -161,6 +161,7 @@ static t_std_error sdi_nvram_register(
                                )
 {
     sdi_device_hdl_t chip = calloc(sizeof(*chip), 1);
+    STD_ASSERT(chip != NULL);
 
     chip->bus_hdl   = bus_handle;
     chip->callbacks = nvram_entry;

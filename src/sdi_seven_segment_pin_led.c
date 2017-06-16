@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MIN(X,Y) (((X) < (Y)) ? (X) : (Y))
 /* Attribute used to represent the pin bus which controls the digit LED */
 #define SDI_DIGIT_LED_CTRL_BUS  "led_control_bus"
 
@@ -50,11 +51,51 @@ static t_std_error sdi_seven_segment_led_register (std_config_node_t node, void 
 static inline bool is_display_string_valid(const char *display_string)
 {
     if( ( ((*display_string) >= '0') && ((*display_string) <= '9') ) ||
+        ( ((*display_string) >= 'A') && ((*display_string) <= 'F') ) ||
         ( ((*display_string) >= 'a') && ((*display_string) <= 'f') ) ) {
         return true;
     }
 
     return false;
+}
+
+/**
+ * Gets the specified digit on the digital led
+ *
+ * resource_hdl[in] - Handle of the resource
+ * display_string[out] - Value displayed
+ * buf_size[in] - size of allocated buffer
+ *
+ * return t_std_error
+ */
+static t_std_error sdi_seven_segment_led_get (void *resource_hdl,
+    char *display_string, size_t buf_size)
+{
+    sdi_device_hdl_t digit_led = NULL;
+    t_std_error rc = STD_ERR_OK;
+    sdi_pin_group_bus_hdl_t bus_hdl = NULL;
+    uint_t read_value = 0;
+
+    STD_ASSERT(resource_hdl != NULL);
+
+    digit_led = (sdi_device_hdl_t) resource_hdl;
+
+    bus_hdl = (sdi_pin_group_bus_hdl_t)digit_led->bus_hdl;
+
+    rc = sdi_pin_group_acquire_bus(bus_hdl);
+    if(rc != STD_ERR_OK) {
+        return rc;
+    }
+
+    rc = sdi_pin_group_read_level(bus_hdl, &read_value);
+    snprintf(display_string, MIN(buf_size, SDI_LED_NUM_OF_DIGIT_SUPPORTED +1),"%X", read_value);
+    if (rc != STD_ERR_OK) {
+        SDI_DEVICE_ERRMSG_LOG("Reading the value to pin group bus is failed with rc : %d",
+                              rc);
+    }
+    sdi_pin_group_release_bus(bus_hdl);
+    return rc;
+
 }
 
 /**
@@ -100,6 +141,36 @@ static t_std_error sdi_seven_segment_led_set (void *resource_hdl, const char *di
                               rc);
     }
     sdi_pin_group_release_bus(bus_hdl);
+    return rc;
+}
+
+/**
+ * Get the seven segment LED power state
+ *
+ * resource_hdl[in] - Handle of the resource
+ * state[out] - bool pointer to state value
+ *
+ * return t_std_error
+ */
+static t_std_error sdi_seven_segment_led_get_state (void *resource_hdl,
+    bool *state)
+{
+    sdi_pin_bus_level_t pin_state;
+    t_std_error rc;
+    sdi_device_hdl_t digit_led = NULL;
+    sdi_pin_bus_hdl_t led_ctrl_hdl = NULL;
+
+    STD_ASSERT(resource_hdl != NULL);
+
+    digit_led = (sdi_device_hdl_t) resource_hdl;
+    led_ctrl_hdl = (sdi_pin_bus_hdl_t)digit_led->private_data;
+    STD_ASSERT(led_ctrl_hdl != NULL);
+
+    rc = sdi_pin_read_level(led_ctrl_hdl, &pin_state);
+    if (rc == STD_ERR_OK)
+    {
+        *state = (pin_state == SDI_PIN_LEVEL_HIGH);
+    }
     return rc;
 }
 
@@ -166,7 +237,9 @@ const sdi_driver_t * sdi_seven_segment_led_entry_callbacks (void)
 static sdi_digital_display_led_t sdi_seven_segment_led = {
     sdi_seven_segment_led_on,
     sdi_seven_segment_led_off,
-    sdi_seven_segment_led_set
+    sdi_seven_segment_led_set,
+    sdi_seven_segment_led_get,
+    sdi_seven_segment_led_get_state
 };
 
 /**

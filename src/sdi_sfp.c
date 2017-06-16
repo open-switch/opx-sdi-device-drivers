@@ -174,11 +174,9 @@ static media_ctrl_t sfp_media = {
     .cdr_status_set = NULL, /* clock and data recovery control is not supported on sfp */
     .cdr_status_get = NULL, /* clock and data recovery control is not supported on sfp */
     .speed_get = sdi_sfp_speed_get,
-    .is_dell_qualified = sdi_sfp_is_dell_qualified,
     .parameter_get = sdi_sfp_parameter_get,
     .vendor_info_get = sdi_sfp_vendor_info_get,
     .transceiver_code_get = sdi_sfp_transceiver_code_get,
-    .dell_product_info_get = sdi_sfp_dell_product_info_get,
     .threshold_get = sdi_sfp_threshold_get,
     .module_monitor_threshold_get = sdi_sfp_module_monitor_threshold_get,
     .channel_monitor_threshold_get = sdi_sfp_channel_monitor_threshold_get,
@@ -193,7 +191,10 @@ static media_ctrl_t sfp_media = {
     .media_phy_autoneg_set = sdi_sfp_phy_autoneg_set,
     .media_phy_speed_set = sdi_sfp_phy_speed_set,
     .media_phy_mode_set = sdi_sfp_phy_mode_set,
-    .wavelength_set = sdi_sfp_wavelength_set
+    .wavelength_set = sdi_sfp_wavelength_set,
+    .media_phy_link_status_get = sdi_sfp_phy_link_status_get,
+    .media_phy_power_down_enable = sdi_sfp_phy_power_down_enable,
+    .media_phy_serdes_control = sdi_sfp_phy_serdes_control
 };
 
 /*

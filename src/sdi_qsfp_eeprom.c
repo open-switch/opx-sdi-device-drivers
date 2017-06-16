@@ -45,8 +45,13 @@
 #define QSFP_TX_LOS_FLAG(x) ( QSFP_TX_LOS_BIT_OFFSET << (x) )
 #define QSFP_RX_LOS_FLAG(x) ( QSFP_RX_LOS_BIT_OFFSET << (x) )
 
+#define QSFP_DD_TX_LOS_FLAG(x) ( QSFP_DD_TX_LOS_BIT_OFFSET << (x) )
+#define QSFP_DD_RX_LOS_FLAG(x) ( QSFP_DD_RX_LOS_BIT_OFFSET << (x) )
+
 #define QSFP_TX_ENABLE_DELAY (400 * 1000)
 #define QSFP_TX_DISABLE_DELAY (100 * 1000)
+
+#define MIN(x,y) ((x) < (y) ? (x) : (y))
 
 /* QSFP channel numbers */
 enum {
@@ -54,6 +59,10 @@ enum {
     SDI_QSFP_CHANNEL_TWO,
     SDI_QSFP_CHANNEL_THREE,
     SDI_QSFP_CHANNEL_FOUR,
+    SDI_QSFP_CHANNEL_FIVE,
+    SDI_QSFP_CHANNEL_SIX,
+    SDI_QSFP_CHANNEL_SEVEN,
+    SDI_QSFP_CHANNEL_EIGHT,
 };
 
  /*QSFP parameter sizes */
@@ -109,6 +118,7 @@ static sdi_qsfp_reg_info_t param_reg_info[] = {
     { 0, 0}, /* for SDI_MEDIA_MAX_BITRATE, not supported on QSFP */
     { 0, 0}, /* for SDI_MEDIA_MIN_BITRATE, not supported on QSFP */
     { 0, 0}, /* for SDI_MEDIA_EXT_COMPLIANCE_CODE, not supported on QSFP */
+    { QSFP_FREE_SIDE_DEV_PROP_OFFSET, SDI_QSFP_BYTE_SIZE}, /* For  SDI_FREE_SIDE_DEV_PROP */
 };
 
 /* vendor register information structure. Parameters in this structure should be
@@ -245,9 +255,13 @@ static inline void sdi_qsfp_module_deselect(qsfp_device_t *qsfp_priv_data)
 }
 
 /* This function validates the channel number */
-static inline bool sdi_qsfp_validate_channel (uint_t channel)
+static inline bool sdi_qsfp_validate_channel (uint_t channel, qsfp_category_t category)
 {
-    return( channel <= SDI_QSFP_CHANNEL_FOUR );
+    if (category == SDI_CATEGORY_QSFPDD) {
+        return (channel <= SDI_QSFP_CHANNEL_EIGHT);
+    } else {
+        return( channel <= SDI_QSFP_CHANNEL_FOUR );
+    }
 }
 
 /* This function checks whether paging is supported or not on a QSFP. If paging
@@ -480,8 +494,13 @@ t_std_error sdi_qsfp_module_monitor_status_get (sdi_resource_hdl_t resource_hdl,
                     (SDI_MEDIA_STATUS_TEMP_LOW_ALARM)   |
                     (SDI_MEDIA_STATUS_TEMP_HIGH_WARNING)|
                     (SDI_MEDIA_STATUS_TEMP_LOW_WARNING) ) ) {
+
+            uint_t temp_intr = (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD)
+                                     ? QSFP_DD_TEMP_INTERRUPT_OFFSET
+                                     : QSFP_TEMP_INTERRUPT_OFFSET;
+
             rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                    QSFP_TEMP_INTERRUPT_OFFSET, &temp_status_buf, SDI_I2C_FLAG_NONE);
+                    temp_intr, &temp_status_buf, SDI_I2C_FLAG_NONE);
             if (rc != STD_ERR_OK){
                 SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
                         "rc : %d", qsfp_device->addr, rc);
@@ -493,8 +512,13 @@ t_std_error sdi_qsfp_module_monitor_status_get (sdi_resource_hdl_t resource_hdl,
                     (SDI_MEDIA_STATUS_VOLT_LOW_ALARM)   |
                     (SDI_MEDIA_STATUS_VOLT_HIGH_WARNING)|
                     (SDI_MEDIA_STATUS_VOLT_LOW_WARNING) ) ) {
+
+            uint_t volt_intr = (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD)
+                                     ? QSFP_DD_VOLT_INTERRUPT_OFFSET
+                                     : QSFP_VOLT_INTERRUPT_OFFSET;
+
             rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                    QSFP_VOLT_INTERRUPT_OFFSET, &volt_status_buf, SDI_I2C_FLAG_NONE);
+                    volt_intr, &volt_status_buf, SDI_I2C_FLAG_NONE);
             if (rc != STD_ERR_OK){
                 SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
                         "rc : %d", qsfp_device->addr, rc);
@@ -562,7 +586,7 @@ t_std_error sdi_qsfp_channel_monitor_status_get (sdi_resource_hdl_t resource_hdl
                                                   channel, flags, status);
     }
 
-    if (sdi_qsfp_validate_channel(channel) != true){
+    if (sdi_qsfp_validate_channel(channel, qsfp_priv_data->mod_category) != true){
         return SDI_DEVICE_ERR_PARAM;
     }
 
@@ -676,7 +700,7 @@ t_std_error sdi_qsfp_channel_status_get (sdi_resource_hdl_t resource_hdl, uint_t
                                           channel, flags, status);
     }
 
-    if (sdi_qsfp_validate_channel(channel) != true){
+    if (sdi_qsfp_validate_channel(channel, qsfp_priv_data->mod_category) != true){
         return SDI_DEVICE_ERR_PARAM;
     }
 
@@ -689,8 +713,11 @@ t_std_error sdi_qsfp_channel_status_get (sdi_resource_hdl_t resource_hdl, uint_t
         std_usleep(MILLI_TO_MICRO(qsfp_priv_data->delay));
 
         if( ((flags) & (SDI_MEDIA_STATUS_TXDISABLE)) ) {
+            uint_t tx_control = (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD)
+                                     ? QSFP_DD_TX_CONTROL_OFFSET
+                                     : QSFP_TX_CONTROL_OFFSET;
             rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                    QSFP_TX_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
+                    tx_control, &buf, SDI_I2C_FLAG_NONE);
             if (rc != STD_ERR_OK){
                 SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
                         "rc : %d", qsfp_device->addr, rc);
@@ -703,8 +730,12 @@ t_std_error sdi_qsfp_channel_status_get (sdi_resource_hdl_t resource_hdl, uint_t
         }
 
         if( ((flags) & (SDI_MEDIA_STATUS_TXFAULT)) ) {
+
+            uint_t tx_fault = (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD)
+                                ? QSFP_DD_CHANNEL_TXFAULT_INDICATOR
+                                : QSFP_CHANNEL_TXFAULT_INDICATOR;
             rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                    QSFP_CHANNEL_TXFAULT_INDICATOR, &buf, SDI_I2C_FLAG_NONE);
+                    tx_fault, &buf, SDI_I2C_FLAG_NONE);
             if (rc != STD_ERR_OK){
                 SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
                         "rc : %d", qsfp_device->addr, rc);
@@ -717,20 +748,64 @@ t_std_error sdi_qsfp_channel_status_get (sdi_resource_hdl_t resource_hdl, uint_t
         }
 
         if( ( (flags) & ((SDI_MEDIA_STATUS_TXLOSS)|(SDI_MEDIA_STATUS_RXLOSS)) ) ) {
-            rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                    QSFP_CHANNEL_LOS_INDICATOR, &buf, SDI_I2C_FLAG_NONE);
-            if (rc != STD_ERR_OK){
-                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
-                        "rc : %d", qsfp_device->addr, rc);
-                break;
-            }
 
-            if( (buf & QSFP_TX_LOS_FLAG(channel)) ) {
-                *status |= SDI_MEDIA_STATUS_TXLOSS;
-            }
+            if (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD) {
 
-            if( (buf & QSFP_RX_LOS_FLAG(channel)) ) {
-                *status |= SDI_MEDIA_STATUS_RXLOSS;
+                if( flags & SDI_MEDIA_STATUS_TXLOSS ) {
+
+                    rc = sdi_smbus_read_byte(qsfp_device->bus_hdl,
+                            qsfp_device->addr.i2c_addr,
+                            QSFP_DD_CHANNEL_TX_LOS_INDICATOR, &buf,
+                            SDI_I2C_FLAG_NONE);
+
+                    if (rc != STD_ERR_OK){
+                        SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
+                                "rc : %d", qsfp_device->addr, rc);
+                        break;
+                    }
+
+                    if ( buf & QSFP_DD_TX_LOS_FLAG(channel) ) {
+
+                        *status |= SDI_MEDIA_STATUS_TXLOSS;
+                    }
+                }
+
+                if( flags & SDI_MEDIA_STATUS_RXLOSS ) {
+
+                    rc = sdi_smbus_read_byte(qsfp_device->bus_hdl,
+                            qsfp_device->addr.i2c_addr,
+                            QSFP_DD_CHANNEL_RX_LOS_INDICATOR, &buf,
+                            SDI_I2C_FLAG_NONE);
+
+                    if (rc != STD_ERR_OK){
+                        SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
+                                "rc : %d", qsfp_device->addr, rc);
+                        break;
+                    }
+
+                    if ( buf & QSFP_DD_RX_LOS_FLAG(channel) ) {
+
+                        *status |= SDI_MEDIA_STATUS_RXLOSS;
+                    }
+                }
+
+            } else {
+
+                rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                        QSFP_CHANNEL_LOS_INDICATOR, &buf, SDI_I2C_FLAG_NONE);
+                if (rc != STD_ERR_OK){
+                    SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d"
+                            "rc : %d", qsfp_device->addr, rc);
+                    break;
+                }
+
+                if( (buf & QSFP_TX_LOS_FLAG(channel))  ) {
+                    *status |= SDI_MEDIA_STATUS_TXLOSS;
+                }
+
+                if( (buf & QSFP_RX_LOS_FLAG(channel))  ) {
+                    *status |= SDI_MEDIA_STATUS_RXLOSS;
+                }
             }
         }
     } while(0);
@@ -767,7 +842,7 @@ t_std_error sdi_qsfp_tx_control (sdi_resource_hdl_t resource_hdl, uint_t channel
                                   channel, enable);
     }
 
-    if (sdi_qsfp_validate_channel(channel) != true){
+    if (sdi_qsfp_validate_channel(channel, qsfp_priv_data->mod_category) != true){
         return SDI_DEVICE_ERR_PARAM;
     }
 
@@ -789,8 +864,11 @@ t_std_error sdi_qsfp_tx_control (sdi_resource_hdl_t resource_hdl, uint_t channel
            break;
         }
 
+        uint_t tx_control = (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD)
+                                   ? QSFP_DD_TX_CONTROL_OFFSET
+                                   : QSFP_TX_CONTROL_OFFSET;
         rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_TX_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
+                tx_control, &buf, SDI_I2C_FLAG_NONE);
         if (rc != STD_ERR_OK){
             SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
                     qsfp_device->addr, rc);
@@ -810,7 +888,7 @@ t_std_error sdi_qsfp_tx_control (sdi_resource_hdl_t resource_hdl, uint_t channel
         }
 
         rc = sdi_smbus_write_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_TX_CONTROL_OFFSET, buf, SDI_I2C_FLAG_NONE);
+                tx_control, buf, SDI_I2C_FLAG_NONE);
         if (rc != STD_ERR_OK){
             SDI_DEVICE_ERRMSG_LOG("qsfp smbus write failed at addr : %d rc : %d",
                     qsfp_device->addr, rc);
@@ -848,7 +926,7 @@ t_std_error sdi_qsfp_tx_control_status_get(sdi_resource_hdl_t resource_hdl,
                                   channel, status);
     }
 
-    if (sdi_qsfp_validate_channel(channel) != true){
+    if (sdi_qsfp_validate_channel(channel, qsfp_priv_data->mod_category) != true){
         return SDI_DEVICE_ERR_PARAM;
     }
 
@@ -860,8 +938,11 @@ t_std_error sdi_qsfp_tx_control_status_get(sdi_resource_hdl_t resource_hdl,
     do {
         std_usleep(MILLI_TO_MICRO(qsfp_priv_data->delay));
 
+        uint_t tx_control = (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD)
+                                   ? QSFP_DD_TX_CONTROL_OFFSET
+                                   : QSFP_TX_CONTROL_OFFSET;
         rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_TX_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
+                tx_control, &buf, SDI_I2C_FLAG_NONE);
         if (rc != STD_ERR_OK){
             SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
                     qsfp_device->addr, rc);
@@ -909,7 +990,7 @@ t_std_error sdi_qsfp_cdr_status_set (sdi_resource_hdl_t resource_hdl, uint_t cha
         return SDI_DEVICE_ERRCODE(EOPNOTSUPP);
     }
 
-    if (sdi_qsfp_validate_channel(channel) != true){
+    if (sdi_qsfp_validate_channel(channel, qsfp_priv_data->mod_category) != true){
         return SDI_DEVICE_ERR_PARAM;
     }
 
@@ -931,40 +1012,101 @@ t_std_error sdi_qsfp_cdr_status_set (sdi_resource_hdl_t resource_hdl, uint_t cha
            break;
         }
 
-        rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_CDR_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
-        if (rc != STD_ERR_OK){
-            SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
-                    qsfp_device->addr, rc);
-            break;
-        }
+        if (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD) {
 
-        if (enable == true){
+            //TX_CDR_CONTROL
+            rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                QSFP_DD_TX_CDR_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
 
-            if (support_status & (1 << QSFP_TX_CDR_CONTROL_BIT_OFFSET)) {
-                STD_BIT_SET(buf, QSFP_TX_CDR_CONTROL_BIT(channel));
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+                break;
             }
 
-            if (support_status & (1 << QSFP_RX_CDR_CONTROL_BIT_OFFSET)) {
-                STD_BIT_SET(buf, QSFP_RX_CDR_CONTROL_BIT(channel));
+            if (enable == true){
+                if (support_status & (1 << QSFP_TX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_SET(buf, QSFP_DD_TX_CDR_CONTROL_BIT(channel));
+                }
+
+            } else {
+                if (support_status & (1 << QSFP_TX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_CLEAR(buf, QSFP_DD_TX_CDR_CONTROL_BIT(channel));
+                }
+            }
+
+            rc = sdi_smbus_write_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                    QSFP_DD_TX_CDR_CONTROL_OFFSET, buf, SDI_I2C_FLAG_NONE);
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus write failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+            }
+
+
+            //RX_CDR_CONTROL
+            rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                QSFP_DD_RX_CDR_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
+
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+                break;
+            }
+
+            if (enable == true){
+                if (support_status & (1 << QSFP_RX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_SET(buf, QSFP_DD_RX_CDR_CONTROL_BIT(channel));
+                }
+
+            } else {
+                if (support_status & (1 << QSFP_RX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_CLEAR(buf, QSFP_DD_RX_CDR_CONTROL_BIT(channel));
+                }
+            }
+
+            rc = sdi_smbus_write_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                    QSFP_DD_RX_CDR_CONTROL_OFFSET, buf, SDI_I2C_FLAG_NONE);
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus write failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
             }
 
         } else {
-            if (support_status & (1 << QSFP_TX_CDR_CONTROL_BIT_OFFSET)) {
-                STD_BIT_CLEAR(buf, QSFP_TX_CDR_CONTROL_BIT(channel));
+
+            rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                QSFP_CDR_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
+
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+                break;
             }
 
-            if (support_status & (1 << QSFP_RX_CDR_CONTROL_BIT_OFFSET)) {
-                STD_BIT_CLEAR(buf, QSFP_RX_CDR_CONTROL_BIT(channel));
+            if (enable == true){
+                if (support_status & (1 << QSFP_TX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_SET(buf, QSFP_TX_CDR_CONTROL_BIT(channel));
+                }
+
+                if (support_status & (1 << QSFP_RX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_SET(buf, QSFP_RX_CDR_CONTROL_BIT(channel));
+                }
+            } else {
+                if (support_status & (1 << QSFP_TX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_CLEAR(buf, QSFP_TX_CDR_CONTROL_BIT(channel));
+                }
+
+                if (support_status & (1 << QSFP_RX_CDR_CONTROL_BIT_OFFSET)) {
+                    STD_BIT_CLEAR(buf, QSFP_RX_CDR_CONTROL_BIT(channel));
+                }
             }
 
-        }
+            rc = sdi_smbus_write_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                    QSFP_CDR_CONTROL_OFFSET, buf, SDI_I2C_FLAG_NONE);
 
-        rc = sdi_smbus_write_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_CDR_CONTROL_OFFSET, buf, SDI_I2C_FLAG_NONE);
-        if (rc != STD_ERR_OK){
-            SDI_DEVICE_ERRMSG_LOG("qsfp smbus write failed at addr : %d rc : %d",
-                    qsfp_device->addr, rc);
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus write failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+            }
         }
     } while(0);
     sdi_qsfp_module_deselect(qsfp_priv_data);
@@ -986,6 +1128,7 @@ t_std_error sdi_qsfp_cdr_status_get(sdi_resource_hdl_t resource_hdl,
     t_std_error rc = STD_ERR_OK;
     uint_t support_status = 0;
     uint8_t buf = 0;
+    uint8_t buf1 = 0;
 
     STD_ASSERT(resource_hdl != NULL);
     STD_ASSERT(status != NULL);
@@ -998,7 +1141,7 @@ t_std_error sdi_qsfp_cdr_status_get(sdi_resource_hdl_t resource_hdl,
         return SDI_DEVICE_ERRCODE(EOPNOTSUPP);
     }
 
-    if (sdi_qsfp_validate_channel(channel) != true){
+    if (sdi_qsfp_validate_channel(channel, qsfp_priv_data->mod_category) != true){
         return SDI_DEVICE_ERR_PARAM;
     }
 
@@ -1020,12 +1163,32 @@ t_std_error sdi_qsfp_cdr_status_get(sdi_resource_hdl_t resource_hdl,
            break;
         }
 
-        rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_CDR_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
-        if (rc != STD_ERR_OK){
-            SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
-                    qsfp_device->addr, rc);
-        }
+        if (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD) {
+            rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                    QSFP_DD_TX_CDR_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
+
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+            }
+
+            rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                    QSFP_DD_RX_CDR_CONTROL_OFFSET, &buf1, SDI_I2C_FLAG_NONE);
+
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+            }
+        } else {
+            rc = sdi_smbus_read_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
+                    QSFP_CDR_CONTROL_OFFSET, &buf, SDI_I2C_FLAG_NONE);
+
+            if (rc != STD_ERR_OK){
+                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
+                        qsfp_device->addr, rc);
+            }
+       }
+
     } while(0);
 
     sdi_qsfp_module_deselect(qsfp_priv_data);
@@ -1034,11 +1197,20 @@ t_std_error sdi_qsfp_cdr_status_get(sdi_resource_hdl_t resource_hdl,
         /* If bit is set,  CDR is enabled on the channel and if bit is not
          * set, CDR is disabled on the channel*/
 
-        if ( (STD_BIT_TEST(buf, QSFP_TX_CDR_CONTROL_BIT(channel)) == 0)
-                || STD_BIT_TEST(buf, QSFP_RX_CDR_CONTROL_BIT(channel))) {
-            *status = true;
+        if (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD) {
+            if ( (STD_BIT_TEST(buf, QSFP_DD_TX_CDR_CONTROL_BIT(channel)) == 0)
+                    || STD_BIT_TEST(buf1, QSFP_DD_RX_CDR_CONTROL_BIT(channel))) {
+                *status = true;
+            } else {
+                *status = false;
+            }
         } else {
-            *status = false;
+            if ( (STD_BIT_TEST(buf, QSFP_TX_CDR_CONTROL_BIT(channel)) == 0)
+                    || STD_BIT_TEST(buf, QSFP_RX_CDR_CONTROL_BIT(channel))) {
+                *status = true;
+            } else {
+                *status = false;
+            }
         }
     }
 
@@ -1072,77 +1244,6 @@ t_std_error  sdi_qsfp_speed_get(sdi_resource_hdl_t resource_hdl,
     *speed = SDI_MEDIA_SPEED_40G;
 
     return STD_ERR_OK;
-}
-
-/**
- * Check whether the specified QSFP is dell qualified
- * resource_hdl[in] - handle of the resource
- * status[out]    - true if optics is dell qualified else false
- * return           - t_std_error
- */
-t_std_error sdi_qsfp_is_dell_qualified (sdi_resource_hdl_t resource_hdl,
-                                        bool *status)
-{
-    sdi_device_hdl_t qsfp_device = NULL;
-    qsfp_device_t *qsfp_priv_data = NULL;
-    t_std_error rc = STD_ERR_OK;
-    uint8_t magic_key[SDI_QSFP_MAGIC_KEY_SIZE] = { 0 };
-
-    STD_ASSERT(resource_hdl != NULL);
-    STD_ASSERT(status != NULL);
-
-    qsfp_device = (sdi_device_hdl_t)resource_hdl;
-    qsfp_priv_data = (qsfp_device_t *)qsfp_device->private_data;
-    STD_ASSERT(qsfp_priv_data != NULL);
-
-    if (qsfp_priv_data->mod_type == QSFP_QSA_ADAPTER) {
-        return sdi_sfp_is_dell_qualified(qsfp_priv_data->sfp_device,
-                                         status);
-    }
-
-    rc = sdi_qsfp_module_select(qsfp_device);
-    if (rc != STD_ERR_OK){
-        return rc;
-    }
-
-    do {
-        std_usleep(MILLI_TO_MICRO(qsfp_priv_data->delay));
-
-        rc = sdi_smbus_read_word(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_DELL_PRODUCT_ID_OFFSET, (uint16_t *)magic_key, SDI_I2C_FLAG_NONE);
-        if (rc != STD_ERR_OK){
-            SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d",
-                    qsfp_device->addr);
-            break;
-        } else if (!(((magic_key[0] == SDI_QSFP_DELL_PRODUCT_ID_MAGIC0) ||
-                  (magic_key[0] == SDI_QSFP28_DELL_PRODUCT_ID_MAGIC0)) &&
-                  (magic_key[1] == SDI_QSFP_DELL_PRODUCT_ID_MAGIC1))) {
-
-            std_usleep(MILLI_TO_MICRO(qsfp_priv_data->delay));
-
-            rc = sdi_smbus_read_word(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                    QSFP_DELL_PRODUCT_ID_OFFSET_SEC, (uint16_t *)magic_key, SDI_I2C_FLAG_NONE);
-            if (rc != STD_ERR_OK){
-                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d",
-                         qsfp_device->addr);
-            }
-        }
-    } while(0);
-
-    sdi_qsfp_module_deselect(qsfp_priv_data);
-
-    if(rc == STD_ERR_OK) {
-        if ( ((magic_key[0] == SDI_QSFP_DELL_PRODUCT_ID_MAGIC0) ||
-             (magic_key[0] == SDI_QSFP28_DELL_PRODUCT_ID_MAGIC0)) &&
-             (magic_key[1] == SDI_QSFP_DELL_PRODUCT_ID_MAGIC1) )
-        {
-            *status = true;
-        } else {
-            *status = false;
-        }
-    }
-
-    return rc;
 }
 
 /**
@@ -1325,7 +1426,7 @@ t_std_error sdi_qsfp_vendor_info_get(sdi_resource_hdl_t resource_hdl,
                 (*(buf_ptr - 1) == 0x20)
                 || (*(buf_ptr - 1) == '\0'); buf_ptr--);
         *buf_ptr = '\0';
-        snprintf(vendor_info, data_len, "%s", data_buf);
+         memcpy(vendor_info, data_buf, MIN((buf_ptr-data_buf)+1, size));
     }
     return rc;
 }
@@ -1380,66 +1481,6 @@ t_std_error sdi_qsfp_transceiver_code_get(sdi_resource_hdl_t resource_hdl,
         memcpy((char *)transceiver_info, (char *)buf, SDI_QSFP_QUAD_WORD_SIZE);
     }
 
-    return rc;
-}
-
-/**
- * Read the dell product information
- * resource_hdl[in] - Handle of the resource
- * info[out]        - dell product information
- * return           - standard t_std_error
- */
-t_std_error sdi_qsfp_dell_product_info_get(sdi_resource_hdl_t resource_hdl,
-                                           sdi_media_dell_product_info_t *info)
-{
-    sdi_device_hdl_t qsfp_device = NULL;
-    qsfp_device_t *qsfp_priv_data = NULL;
-    t_std_error rc = STD_ERR_OK;
-
-    STD_ASSERT(resource_hdl != NULL);
-    STD_ASSERT(info != NULL);
-
-    qsfp_device = (sdi_device_hdl_t)resource_hdl;
-    qsfp_priv_data = (qsfp_device_t *)qsfp_device->private_data;
-    STD_ASSERT(qsfp_priv_data != NULL);
-
-    if (qsfp_priv_data->mod_type == QSFP_QSA_ADAPTER) {
-        return sdi_sfp_dell_product_info_get(qsfp_priv_data->sfp_device,
-                                             info);
-    }
-
-    rc = sdi_qsfp_module_select(qsfp_device);
-    if (rc != STD_ERR_OK){
-        return rc;
-    }
-
-    do {
-        std_usleep(MILLI_TO_MICRO(qsfp_priv_data->delay));
-
-        rc = sdi_smbus_read_multi_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                QSFP_DELL_PRODUCT_ID_OFFSET, (uint8_t *)info,
-                sizeof(sdi_media_dell_product_info_t), SDI_I2C_FLAG_NONE);
-        if (rc != STD_ERR_OK) {
-            SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
-                    qsfp_device->addr, rc);
-        } else if (!(((info->magic_key0 == SDI_QSFP_DELL_PRODUCT_ID_MAGIC0) ||
-                    (info->magic_key0 == SDI_QSFP28_DELL_PRODUCT_ID_MAGIC0)) &&
-                    (info->magic_key1  == SDI_QSFP_DELL_PRODUCT_ID_MAGIC1))) {
-
-            std_usleep(MILLI_TO_MICRO(qsfp_priv_data->delay));
-
-            rc = sdi_smbus_read_multi_byte(qsfp_device->bus_hdl, qsfp_device->addr.i2c_addr,
-                    QSFP_DELL_PRODUCT_ID_OFFSET_SEC, (uint8_t *)info,
-                    sizeof(sdi_media_dell_product_info_t), SDI_I2C_FLAG_NONE);
-
-            if (rc != STD_ERR_OK) {
-                SDI_DEVICE_ERRMSG_LOG("qsfp smbus read failed at addr : %d rc : %d",
-                        qsfp_device->addr, rc);
-            }
-        }
-    } while(0);
-
-    sdi_qsfp_module_deselect(qsfp_priv_data);
     return rc;
 }
 
@@ -1667,10 +1708,6 @@ t_std_error sdi_qsfp_channel_monitor_get (sdi_resource_hdl_t resource_hdl, uint_
     STD_ASSERT(resource_hdl != NULL);
     STD_ASSERT(value != NULL);
 
-    if (sdi_qsfp_validate_channel(channel) != true){
-        return SDI_DEVICE_ERR_PARAM;
-    }
-
     qsfp_device = (sdi_device_hdl_t)resource_hdl;
     qsfp_priv_data = (qsfp_device_t *)qsfp_device->private_data;
     STD_ASSERT(qsfp_priv_data != NULL);
@@ -1678,6 +1715,10 @@ t_std_error sdi_qsfp_channel_monitor_get (sdi_resource_hdl_t resource_hdl, uint_
     if (qsfp_priv_data->mod_type == QSFP_QSA_ADAPTER) {
         return sdi_sfp_channel_monitor_get(qsfp_priv_data->sfp_device,
                                            channel, monitor, value);
+    }
+
+    if (sdi_qsfp_validate_channel(channel, qsfp_priv_data->mod_category) != true){
+        return SDI_DEVICE_ERR_PARAM;
     }
 
     switch (monitor)
@@ -1691,27 +1732,80 @@ t_std_error sdi_qsfp_channel_monitor_get (sdi_resource_hdl_t resource_hdl, uint_
                 reg_offset = QSFP_RX3_POWER_OFFSET;
             } else if (channel == SDI_QSFP_CHANNEL_FOUR){
                 reg_offset = QSFP_RX4_POWER_OFFSET;
+            } else if (channel == SDI_QSFP_CHANNEL_FIVE){
+                reg_offset = QSFP_DD_RX5_POWER_OFFSET;
+            } else if (channel == SDI_QSFP_CHANNEL_SIX){
+                reg_offset = QSFP_DD_RX6_POWER_OFFSET;
+            } else if (channel == SDI_QSFP_CHANNEL_SEVEN){
+                reg_offset = QSFP_DD_RX7_POWER_OFFSET;
+            } else if (channel == SDI_QSFP_CHANNEL_EIGHT){
+                reg_offset = QSFP_DD_RX8_POWER_OFFSET;
             } else {
                 return SDI_DEVICE_ERRCODE(EINVAL);
             }
             break;
 
         case SDI_MEDIA_INTERNAL_TX_POWER_BIAS:
-            if (channel == SDI_QSFP_CHANNEL_ONE){
-                reg_offset = QSFP_TX1_POWER_BIAS_OFFSET;
-            } else if (channel == SDI_QSFP_CHANNEL_TWO){
-                reg_offset = QSFP_TX2_POWER_BIAS_OFFSET;
-            } else if (channel == SDI_QSFP_CHANNEL_THREE){
-                reg_offset = QSFP_TX3_POWER_BIAS_OFFSET;
-            } else if (channel == SDI_QSFP_CHANNEL_FOUR){
-                reg_offset = QSFP_TX4_POWER_BIAS_OFFSET;
+            if (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD) {
+                if (channel == SDI_QSFP_CHANNEL_ONE){
+                    reg_offset = QSFP_DD_TX1_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_TWO){
+                    reg_offset = QSFP_DD_TX2_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_THREE){
+                    reg_offset = QSFP_DD_TX3_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_FOUR){
+                    reg_offset = QSFP_DD_TX4_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_FIVE){
+                    reg_offset = QSFP_DD_TX5_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_SIX){
+                    reg_offset = QSFP_DD_TX6_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_SEVEN){
+                    reg_offset = QSFP_DD_TX7_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_EIGHT){
+                    reg_offset = QSFP_DD_TX8_BIAS_OFFSET;
+                } else {
+                    return SDI_DEVICE_ERRCODE(EINVAL);
+                }
             } else {
-                return SDI_DEVICE_ERRCODE(EINVAL);
+                if (channel == SDI_QSFP_CHANNEL_ONE){
+                    reg_offset = QSFP_TX1_POWER_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_TWO){
+                    reg_offset = QSFP_TX2_POWER_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_THREE){
+                    reg_offset = QSFP_TX3_POWER_BIAS_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_FOUR){
+                    reg_offset = QSFP_TX4_POWER_BIAS_OFFSET;
+                } else {
+                    return SDI_DEVICE_ERRCODE(EINVAL);
+                }
             }
             break;
 
         case SDI_MEDIA_INTERNAL_TX_OUTPUT_POWER:
-            return SDI_DEVICE_ERRCODE(EOPNOTSUPP);
+            if (qsfp_priv_data->mod_category == SDI_CATEGORY_QSFPDD) {
+                if (channel == SDI_QSFP_CHANNEL_ONE){
+                    reg_offset = QSFP_DD_TX1_POWER_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_TWO){
+                    reg_offset = QSFP_DD_TX2_POWER_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_THREE){
+                    reg_offset = QSFP_DD_TX3_POWER_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_FOUR){
+                    reg_offset = QSFP_DD_TX4_POWER_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_FIVE){
+                    reg_offset = QSFP_DD_TX5_POWER_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_SIX){
+                    reg_offset = QSFP_DD_TX6_POWER_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_SEVEN){
+                    reg_offset = QSFP_DD_TX7_POWER_OFFSET;
+                } else if (channel == SDI_QSFP_CHANNEL_EIGHT){
+                    reg_offset = QSFP_DD_TX8_POWER_OFFSET;
+                } else {
+                    return SDI_DEVICE_ERRCODE(EINVAL);
+                }
+            } else {
+                return SDI_DEVICE_ERRCODE(EOPNOTSUPP);
+            }
+            break;
 
         default:
             return SDI_DEVICE_ERRCODE(EINVAL);
@@ -1976,6 +2070,35 @@ t_std_error sdi_qsfp_phy_speed_set (sdi_resource_hdl_t resource_hdl,
 }
 
 /*
+ * @brief get media category based on identifier
+ * @pres[in]      - identifier
+ * @return        - media category
+ */
+
+static qsfp_category_t sdi_qsfp_get_category(uint_t identifier)
+{
+    qsfp_category_t category = SDI_CATEGORY_QSFP;
+
+    switch (identifier) {
+        case 0x0c:
+            category = SDI_CATEGORY_QSFP;
+            break;
+        case 0x0d:
+            category = SDI_CATEGORY_QSFPPLUS;
+            break;
+        case 0x11:
+            category = SDI_CATEGORY_QSFP28;
+            break;
+        case 0x18:
+            category = SDI_CATEGORY_QSFPDD;
+            break;
+        default:
+            break;
+    }
+    return category;
+}
+
+/*
  * @brief initialize the module
  * @param[in] resource_hdl - handle to the qsfp
  * @pres[in]      - presence status
@@ -2034,6 +2157,8 @@ t_std_error sdi_qsfp_module_init (sdi_resource_hdl_t resource_hdl, bool pres)
             qsfp_priv_data->mod_type = QSFP_QSA_ADAPTER;
         }
 
+        qsfp_priv_data->mod_category = sdi_qsfp_get_category(identifier);
+
         if (qsfp_priv_data->mod_type == QSFP_QSA_ADAPTER) {
 
             sdi_device_hdl_t sfp_device = NULL;
@@ -2056,6 +2181,12 @@ t_std_error sdi_qsfp_module_init (sdi_resource_hdl_t resource_hdl, bool pres)
 
             qsfp_priv_data->sfp_device = sfp_device;
 
+        } else {
+            rc = sdi_qsfp_page_select(qsfp_device, SDI_QSFP_PAGE_00);
+            if(rc != STD_ERR_OK) {
+                SDI_DEVICE_ERRMSG_LOG("page 0 selection is failed for %s",
+                        qsfp_device->alias);
+            }
         }
 
     } while (0);

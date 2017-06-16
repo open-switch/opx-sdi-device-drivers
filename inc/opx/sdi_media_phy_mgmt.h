@@ -62,6 +62,32 @@ t_std_error sdi_cusfp_phy_mode_set (sdi_device_hdl_t sfp_device, sdi_media_mode_
 
 t_std_error sdi_cusfp_phy_speed_set(sdi_device_hdl_t sfp_device, sdi_media_speed_t speed);
 
+/**
+ * @brief Api to get link status from media PHY.
+ * @param[in] resource_hdl - handle to media
+ * @param[in] status - true when link is up, false when link is down
+ * @return - standard @ref t_std_error
+ *
+ */
+t_std_error sdi_cusfp_phy_link_status_get (sdi_device_hdl_t sfp_device, bool *status);
+
+/**
+ * @brief Api to power down enable/disable on media PHY.
+ * @param[in] resource_hdl - handle to media
+ * @param[in] enable - true power down media PHY, false - power up media PHY.
+ * @return - standard @ref t_std_error
+ *
+ */
+t_std_error sdi_cusfp_phy_power_down_enable (sdi_device_hdl_t sfp_device, bool enable);
+
+/**
+ * @brief Api to enable/disable the Fiber/Serdes TX and RX on media PHY.
+ * @param[in] resource_hdl - handle to media
+ * @param[in] enable - true enable Serdes, false - Disable Serdes.
+ * @return - standard @ref t_std_error
+ *
+ */
+t_std_error sdi_cusfp_phy_serdes_control (sdi_device_hdl_t sfp_device, bool enable);
 
 /*
  * Api's to handle extended phy related operations for QSFP_4X1_1000BASE_T media type.

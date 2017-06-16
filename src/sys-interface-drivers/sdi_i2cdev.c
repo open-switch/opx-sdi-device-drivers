@@ -365,6 +365,27 @@ static inline t_std_error sdi_smbus_write_byte(int i2cdev_fd,
 }
 
 /**
+ * sdi_smbus_write_block
+ * Write a block at offset specified by commandbuf using I2C
+ * from I2C Bus File descriptor opened on i2cdev_fd
+ * param[in] i2cdev_fd - opened file descriptor for i2c bus
+ * param[in] operation - SMBUS Read/Write Operation
+ * param[in] data_type - SMBUS Transaction size
+ * param[in] commandbuf - Address offset for SMBUS Transaction
+ * param[out] buffer - Write the block in Buffer to I2C Bus
+ * return STD_ERR_OK on Success, SDI_DEVICE_ERRNO on Failure
+ */
+static inline t_std_error sdi_smbus_write_block(int i2cdev_fd,
+    sdi_smbus_operation_t operation, sdi_smbus_data_type_t data_type,
+    uint_t commandbuf, void *buffer)
+{
+    union i2c_smbus_data *data = buffer;
+
+    return sdi_sys_smbus_execute(i2cdev_fd, operation, data_type,
+            commandbuf, data);
+}
+
+/**
  * sdi_i2c_read
  * Read a byte from offset specified by commandbuf using I2C from I2C Bus File
  * descriptor opened on i2cdev_fd
@@ -642,6 +663,37 @@ static t_std_error sdi_i2cdev_smbus_execute(sdi_i2c_bus_hdl_t i2c_bus,
                     operation, I2C_SMBUS_WORD_DATA, commandbuf, buffer);
             }
             break;
+    case SDI_SMBUS_BLOCK_DATA:
+        if (operation == SDI_SMBUS_WRITE) {
+            if (address.addr_mode_16bit == 0) {
+                error = sdi_smbus_write_block(i2cdev_fd,
+                           operation, I2C_SMBUS_I2C_BLOCK_BROKEN, commandbuf, buffer);
+            } else {
+                temp_buf = *(uint8_t *)buffer;
+                temp_word = ((temp_buf << 8) | (commandbuf & 0xff));
+                error = sdi_smbus_write_word(i2cdev_fd,
+                           operation, I2C_SMBUS_I2C_BLOCK_BROKEN, (commandbuf >> 8) & 0xff,
+                           &temp_word);
+            }
+        } else {
+            if (address.addr_mode_16bit == 0) {
+                error = sdi_smbus_read_byte(i2cdev_fd,
+                           operation, I2C_SMBUS_I2C_BLOCK_BROKEN, commandbuf, buffer);
+            } else {
+                temp_buf = (commandbuf & 0xff);
+                error = sdi_smbus_write_byte(i2cdev_fd,
+                           SDI_SMBUS_WRITE, I2C_SMBUS_I2C_BLOCK_BROKEN, (commandbuf >> 8) & 0xff,
+                           &temp_buf);
+                if (error == STD_ERR_OK) {
+                    error = sdi_smbus_recv_byte(i2cdev_fd, operation,
+                                I2C_SMBUS_I2C_BLOCK_BROKEN, buffer);
+                } else {
+                    SDI_DEVICE_ERRMSG_LOG("%s:%d i2c bus %d 16bit addr mode write byte data failed %d\n",
+                                          __FUNCTION__, __LINE__, i2c_bus->bus.bus_id, error);
+                }
+            }
+        }
+        break;
         default:
             error = SDI_DEVICE_ERRCODE(ENOTSUP);
             SDI_DEVICE_ERRMSG_LOG("%s:%d i2c bus %d unsupported data type %d\n",

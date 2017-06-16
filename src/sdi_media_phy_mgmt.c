@@ -29,12 +29,18 @@
 #include "sdi_i2c_bus_api.h"
 #include "std_error_codes.h"
 #include "std_assert.h"
+#include "std_time_tools.h"
 
 /* Magic number description not given in appnote from Marvell
    an-2036 app note from Mavell give below magic value to enable
    SGMII mode for phy device */
 #define PHY_SGMII_MODE 0x9084
 
+#define EXT_ADD_SERDES_TX_RX_CONTROL        (0x001F)
+#define EXT_PHY_CTRL_SERDES_TX_RX_ENABLE    (0x0000)
+#define EXT_PHY_CTRL_SERDES_TX_RX_DISABLE   (0x2001)
+
+#define PHY_CTRL_DELAY (100 * 1000)
 static sdi_i2c_addr_t sfp_phy_i2c_addr = { .i2c_addr = SFP_PHY_I2C_ADDR, .addr_mode_16bit = 0};
 
 /**
@@ -45,13 +51,16 @@ static sdi_i2c_addr_t sfp_phy_i2c_addr = { .i2c_addr = SFP_PHY_I2C_ADDR, .addr_m
  * return           - t_std_error
  */
 
-t_std_error sdi_sfp_phy_write(sdi_device_hdl_t sfp_device,int reg_offset,uint16_t regData)
+t_std_error sdi_sfp_phy_write(sdi_device_hdl_t sfp_device,int reg_offset,uint16_t reg_data)
 {
     t_std_error rc = STD_ERR_OK;
+    uint16_t val = 0;
 
-    SDI_DEVICE_TRACEMSG_LOG("SMBUS Write  #offset %x and #data %x\n",reg_offset,regData);
+    val = ((reg_data >> 8) | (reg_data << 8));
+
+    SDI_DEVICE_TRACEMSG_LOG("SMBUS Write  #offset %x and #data %x\n", reg_offset, reg_data);
     rc = sdi_smbus_write_word(sfp_device->bus_hdl,sfp_phy_i2c_addr,reg_offset,
-            regData,SDI_I2C_FLAG_NONE);
+            val, SDI_I2C_FLAG_NONE);
     if (rc != STD_ERR_OK) {
         SDI_DEVICE_ERRMSG_LOG("sfp smbus write failed at addr : %x reg : %x for %s rc : %d",
                 sfp_device->addr, reg_offset, sfp_device->alias, rc);
@@ -66,18 +75,22 @@ t_std_error sdi_sfp_phy_write(sdi_device_hdl_t sfp_device,int reg_offset,uint16_
  * data[out]      - Data will be filled after read
  */
 
-t_std_error sdi_sfp_phy_read(sdi_device_hdl_t sfp_device,int reg_offset,uint16_t *regData)
+t_std_error sdi_sfp_phy_read(sdi_device_hdl_t sfp_device,int reg_offset, uint16_t *reg_data)
 {
     t_std_error rc = STD_ERR_OK;
+    uint8_t word_buf[2] = { 0 };
 
     rc = sdi_smbus_read_word(sfp_device->bus_hdl,sfp_phy_i2c_addr,reg_offset,
-            (uint16_t *)regData,SDI_I2C_FLAG_NONE);
-    SDI_DEVICE_TRACEMSG_LOG("SMBUS read #offset %x and #data %x\n",reg_offset,*regData);
+            (uint16_t *)word_buf, SDI_I2C_FLAG_NONE);
+
+    SDI_DEVICE_TRACEMSG_LOG("SMBUS read #offset %x and #data %x\n", reg_offset, *reg_data);
     if (rc != STD_ERR_OK) {
         SDI_DEVICE_ERRMSG_LOG("sfp smbus read failed at addr : %x reg : %x for %s rc : %d",
                 SFP_PHY_I2C_ADDR, reg_offset, sfp_device->alias, rc);
+        return rc;
     }
 
+    *reg_data = ( (word_buf[0] << 8) | (word_buf[1]) );
     return rc;
 }
 
@@ -259,3 +272,106 @@ t_std_error sdi_cusfp_phy_speed_set(sdi_device_hdl_t sfp_device, sdi_media_speed
     return rc;
 }
 
+/*
+ * Get Copper SFP media PHY link status.
+ */
+
+t_std_error sdi_cusfp_phy_link_status_get (sdi_device_hdl_t sfp_device, bool *status)
+{
+    t_std_error rc = STD_ERR_OK;
+    uint16_t reg_data = 0;
+
+    do {
+
+        rc = sdi_sfp_phy_read(sfp_device, SFP_COPPER_EXT_STATUS_1_REG, &reg_data);
+        if (rc != STD_ERR_OK) {
+            break;
+        }
+
+        if (reg_data & SFP_COPPER_EXT_STAT_LA) {
+            *status = true;
+        } else {
+            *status = false;
+        }
+
+    } while (0);
+
+    return rc;
+}
+
+/*
+ * Set powerdown enable/disable on Copper SFP PHY.
+ */
+
+t_std_error sdi_cusfp_phy_power_down_enable (sdi_device_hdl_t sfp_device, bool enable)
+{
+    t_std_error rc = STD_ERR_OK;
+    uint16_t reg_data = 0;
+    uint16_t st_reg_data = 0;
+
+    do {
+        rc = sdi_sfp_phy_read(sfp_device, SFP_COPPER_CTRL_REG, &reg_data);
+        if (rc != STD_ERR_OK) {
+            break;
+        }
+
+        rc = sdi_sfp_phy_read(sfp_device, SFP_COPPER_PHY_CTRL_REG, &st_reg_data);
+        if (rc != STD_ERR_OK) {
+            break;
+        }
+        if (st_reg_data & SFP_COPPER_PHY_CTRL_MAC_INT_PD) {
+            st_reg_data &= ~(SFP_COPPER_PHY_CTRL_MAC_INT_PD);
+            rc = sdi_sfp_phy_write(sfp_device, SFP_COPPER_PHY_CTRL_REG, st_reg_data);
+            if (rc != STD_ERR_OK) {
+                break;
+            }
+            sdi_media_phy_sw_reset(sfp_device);
+        }
+
+        if (enable) {
+            if (reg_data & SFP_COPPER_CTRL_PD) break;
+            reg_data |= SFP_COPPER_CTRL_PD;
+        } else {
+            if (!(reg_data & SFP_COPPER_CTRL_PD)) break;
+            reg_data &= ~(SFP_COPPER_CTRL_PD);
+        }
+        
+        rc = sdi_sfp_phy_write(sfp_device, SFP_COPPER_CTRL_REG, reg_data);
+        if (rc != STD_ERR_OK) {
+            break;
+        }
+    } while (0);
+
+    return rc;
+}
+
+/*
+ * Enable/Disable Fiber/Serdes Transmitter and Receiver.
+ */
+
+t_std_error sdi_cusfp_phy_serdes_control (sdi_device_hdl_t sfp_device, bool enable)
+{
+    t_std_error rc = STD_ERR_OK;
+    uint16_t reg_data = 0;
+
+    do {
+        if (enable == true) {
+            reg_data = EXT_PHY_CTRL_SERDES_TX_RX_ENABLE;
+        } else {
+            reg_data = EXT_PHY_CTRL_SERDES_TX_RX_DISABLE;
+        }
+
+        rc = sdi_sfp_phy_write(sfp_device, SFP_COPPER_EXT_ADDRESS_REG,
+                EXT_ADD_SERDES_TX_RX_CONTROL);
+        if (rc != STD_ERR_OK) {
+            break;
+        }
+        std_usleep(PHY_CTRL_DELAY);
+        rc = sdi_sfp_phy_write(sfp_device, SFP_COPPER_EXT_PHY_CTRL_REG, reg_data);
+        if (rc != STD_ERR_OK) {
+            break;
+        }
+    } while (0);
+
+    return rc;
+}
