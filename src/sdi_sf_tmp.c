@@ -251,7 +251,7 @@ static t_std_error sdi_sf_tmp_status_get(void *resource_hdl, bool *status)
     STD_ASSERT(tmp_data != NULL);
 
     if (tmp_data->status_offset_valid == true) {
-        rc = sdi_sf_tmp_data_get(resource_hdl, tmp_data->temp_sensor_addr_offset,
+        rc = sdi_sf_tmp_data_get(resource_hdl, tmp_data->temp_status_addr_offset,
                                  SMF_TMP_REGISTER_ONE_BYTE_WIDTH, &tmp_status);
         if(rc != STD_ERR_OK) {
             SDI_DEVICE_ERRMSG_LOG("temperature sensor status get failed with rc %d\n", rc);

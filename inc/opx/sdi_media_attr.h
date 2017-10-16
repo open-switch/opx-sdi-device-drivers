@@ -128,6 +128,16 @@
 /* @def Attribute used for representing 10G mode value for port led  */
 #define SDI_MEDIA_PORT_LED_10G_MODE_VALUE       "port_led_10g_mode_value"
 
+/* @def Attribute used for representing port type SFP/SFP28/QSFP/QSFP28/DD-QSFP28 */
+#define SDI_MEDIA_PORT_TYPE                     "port_type"
+
+/* @def port types which should be used while specifying in the device.xml config file */
+#define SDI_PORT_TYPE_SFP                       "SFP"
+#define SDI_PORT_TYPE_SFPPLUS                   "SFPPLUS"
+#define SDI_PORT_TYPE_SFP28                     "SFP28"
+#define SDI_PORT_TYPE_QSFP                      "QSFP"
+#define SDI_PORT_TYPE_QSFP28                    "QSFP28"
+#define SDI_PORT_TYPE_QSFP28_DD                 "QSFP28-DD"
 /**
  * @}
  */

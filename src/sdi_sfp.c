@@ -300,6 +300,19 @@ static t_std_error sdi_sfp_register (std_config_node_t node, void *bus_handle,
         sfp_data->mod_sel_value = strtoul(node_attr, NULL, 16);
     }
 
+    node_attr = std_config_attr_get(node, SDI_MEDIA_PORT_TYPE);
+    if (node_attr != NULL) {
+        if (strcmp(node_attr, SDI_PORT_TYPE_SFP) == 0) {
+            sfp_data->capability = SDI_MEDIA_SPEED_1G;
+        } else if (strcmp(node_attr, SDI_PORT_TYPE_SFP28) == 0) {
+            sfp_data->capability = SDI_MEDIA_SPEED_25G;
+        } else {
+            sfp_data->capability = SDI_MEDIA_SPEED_10G;
+        }
+    } else {
+        sfp_data->capability = SDI_MEDIA_SPEED_10G;
+    }
+
     node_attr = std_config_attr_get(node, SDI_MEDIA_MODULE_PRESENCE_BUS);
     STD_ASSERT(node_attr != NULL);
     sfp_data->mod_pres_hdl = sdi_get_pin_group_bus_handle_by_name(node_attr);

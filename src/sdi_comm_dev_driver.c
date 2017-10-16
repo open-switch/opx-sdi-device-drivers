@@ -27,23 +27,21 @@
 #include "sdi_i2c_bus_api.h"
 #include "std_error_codes.h"
 #include "std_assert.h"
+#include "std_bit_ops.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <linux/i2c.h>
 
+#define NORTHBOUND_MAILBOX_TIME_THRESHOLD     (3)
+#define COMM_DEV_STATUS_CLEAR     0x00
 static sdi_i2c_addr_t device_i2c_addr = { .i2c_addr = COMM_DEV_I2C_ADDR, .addr_mode_16bit = 0 };
 static t_std_error sdi_comm_dev_driver_register(std_config_node_t node, void *bus_handle, sdi_device_hdl_t *device_hdl);
 static t_std_error sdi_comm_dev_driver_init(sdi_device_hdl_t device_hdl);
+static t_std_error sdi_comm_dev_status_check_and_clear(sdi_resource_hdl_t resource_hdl);
 
 /*
  * Generic read api for Comm_Dev I2C
- * comm_dev_device[in] - Handle of the device
- * i2c_addr[in] - I2C address of the device
- * reg_offset[in] - offset from which to read
- * len[in] - number of bytes to read
- * regData[out] - pointer to buffer to be filled upon read
- * return standard t_std_error
  */
 t_std_error sdi_comm_dev_recv_byte(sdi_device_hdl_t comm_dev_device, uint8_t i2c_addr, uint16_t reg_offset, uint16_t len, uint8_t *regData) {
     t_std_error rc = STD_ERR_OK;
@@ -69,12 +67,6 @@ t_std_error sdi_comm_dev_recv_byte(sdi_device_hdl_t comm_dev_device, uint8_t i2c
 
 /*
  * Generic block write api for Comm_Dev I2C
- * comm_dev_device[in] - Handle of the device
- * i2c_addr[in] - I2C address of the device
- * reg_offset[in] - offset from which to read
- * len[in] - number of bytes to write
- * regData[in] - pointer to data to be written
- * return standard t_std_error
  */
 t_std_error sdi_comm_dev_write_block(sdi_device_hdl_t comm_dev_device, uint8_t i2c_addr, uint16_t reg_offset, uint16_t len, uint8_t *regData) {
     t_std_error rc = STD_ERR_OK;
@@ -95,12 +87,6 @@ t_std_error sdi_comm_dev_write_block(sdi_device_hdl_t comm_dev_device, uint8_t i
 
 /*
  * Read data from Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * i2c_addr[in] - I2C address of the resource
- * offset[in] - offset from which data to be read
- * len[in] - length of the data to be read
- * data[out] - buffer for data to be read
- * return standard t_std_error
  */
 t_std_error sdi_comm_dev_read(sdi_resource_hdl_t resource_hdl, uint8_t i2c_addr, uint16_t offset, uint16_t len, uint8_t *data) {
     t_std_error rc = STD_ERR_OK;
@@ -124,12 +110,6 @@ t_std_error sdi_comm_dev_read(sdi_resource_hdl_t resource_hdl, uint8_t i2c_addr,
 
 /*
  * Write data to Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * i2c_addr[in] - I2C address of the resource
- * offset[in] - offset from which data to be read
- * len[in] - length of the data to be written
- * data[in] - buffer for data to be written
- * return standard t_std_error
  */
 t_std_error sdi_comm_dev_write(sdi_resource_hdl_t resource_hdl, uint8_t i2c_addr, uint16_t offset, uint16_t len, uint8_t *data) {
     t_std_error rc = STD_ERR_OK;
@@ -157,6 +137,7 @@ t_std_error sdi_comm_dev_write(sdi_resource_hdl_t resource_hdl, uint8_t i2c_addr
             if (STD_ERR_OK != rc) {
                 break;
             }
+            // I2C_SMBUS_BLOCK_MAX / 2 is the maximum value accepted by lower layers
             len_count += (I2C_SMBUS_BLOCK_MAX / 2);
         }
     }
@@ -169,8 +150,6 @@ t_std_error sdi_comm_dev_write(sdi_resource_hdl_t resource_hdl, uint8_t i2c_addr
  * Verifies whether size and checksum of string read from
  * mailbox match size and checksum informed in the first 4 bytes
  * of mailbox buffer
- * p_string [in] - pointer to data from mailbox
- * returns bool - true (check) or false (check failed)
  */
 bool check_mailbox_header(uint8_t *p_string, sdi_mailbox_header_t* p_header) {
     uint16_t     str_checksum = 0,
@@ -197,11 +176,8 @@ bool check_mailbox_header(uint8_t *p_string, sdi_mailbox_header_t* p_header) {
 
 /*
  * Read mailbox data from Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * regData[out] - buffer for data to be read
- * return standard t_std_error
  */
-t_std_error sdi_comm_dev_read_mailbox(sdi_resource_hdl_t resource_hdl, uint8_t *regData) {
+static t_std_error sdi_read_mailbox(sdi_resource_hdl_t resource_hdl, uint8_t *regData) {
     t_std_error          rc = STD_ERR_OK;
     sdi_mailbox_header_t mailbox_header;
 
@@ -228,8 +204,6 @@ t_std_error sdi_comm_dev_read_mailbox(sdi_resource_hdl_t resource_hdl, uint8_t *
 
 /*
  * Adds size and checksum in the first 4 bytes of mailbox
- * buffer p_string [in] - pointer to data to mailbox
- * p_header [out] - pointer to header with checksum + size
  */
 void add_mailbox_header(uint8_t *p_string, sdi_mailbox_header_t* p_header) {
     uint16_t     str_checksum = 0;
@@ -251,12 +225,8 @@ void add_mailbox_header(uint8_t *p_string, sdi_mailbox_header_t* p_header) {
 
 /*
  * Write mailbox data to Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * len[in] - length of the data to be written
- * regData[in] - buffer for data to be written
- * return standard t_std_error
  */
-t_std_error sdi_comm_dev_write_mailbox(sdi_resource_hdl_t resource_hdl, uint16_t len, uint8_t *regData) {
+static t_std_error sdi_write_mailbox(sdi_resource_hdl_t resource_hdl, uint16_t len, uint8_t *regData) {
     sdi_resource_priv_hdl_t comm_dev_hdl = NULL;
     t_std_error             rc = STD_ERR_OK;
     unsigned int            len_count = 0;
@@ -271,6 +241,10 @@ t_std_error sdi_comm_dev_write_mailbox(sdi_resource_hdl_t resource_hdl, uint16_t
         SDI_DEVICE_ERRMSG_LOG("Resource Handler is not COMM DEV\n");
         return (SDI_ERRCODE(EPERM));
     }
+    // Check status register and clear it
+    // Check status register and clear NB.
+
+    rc = sdi_comm_dev_status_check_and_clear(comm_dev_hdl);
 
     add_mailbox_header(regData, &mailbox_header);
 
@@ -283,6 +257,7 @@ t_std_error sdi_comm_dev_write_mailbox(sdi_resource_hdl_t resource_hdl, uint16_t
     }
 
     while (len_count < len) {
+        // I2C_SMBUS_BLOCK_MAX / 2 is the maximum value accepted by lower layers
         if ((len - len_count) > (I2C_SMBUS_BLOCK_MAX / 2)) {
             rc = sdi_comm_dev_write_block(comm_dev_hdl->callback_hdl, COMM_DEV_I2C_ADDR,
                                           (SDI_COMM_DEV_NORTHBOUND_MAILBOX_START_ADDRESS + SDI_COMM_DEV_MAILBOX_HEADER_SIZE + len_count),
@@ -306,55 +281,55 @@ t_std_error sdi_comm_dev_write_mailbox(sdi_resource_hdl_t resource_hdl, uint16_t
 
 /*
  * Write bit Read & Verified using Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * return standard t_std_error
  */
-t_std_error sdi_comm_dev_package_read_and_verified(sdi_resource_hdl_t resource_hdl) {
+static t_std_error sdi_package_read_and_verified(sdi_resource_hdl_t resource_hdl) {
     t_std_error rc = STD_ERR_OK;
-    uint32_t mbox_control = 0;
+    uint8_t     mbox_control[SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE] = {0};
 
     rc = sdi_comm_dev_read(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL,
-                           SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, (uint8_t *)&mbox_control);
+                           SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, &mbox_control[0]);
     if (STD_ERR_OK == rc) {
-        mbox_control = mbox_control | SDI_COMM_DEV_BIT_SB_PACKAGE_READ_AND_VERIFIED;
+        STD_BIT_SET(mbox_control[0], SDI_COMM_DEV_BIT_SB_PACKAGE_READ_AND_VERIFIED);
         rc = sdi_comm_dev_write(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL,
-                                SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, (uint8_t *)&mbox_control);
-    }
+                                SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, &mbox_control[0]);
 
     if (STD_ERR_OK != rc) {
         SDI_DEVICE_ERRMSG_LOG("Error writing Package Read and Verified flag rc=%d\n", rc);
+    }
+    } else {
+        SDI_DEVICE_ERRMSG_LOG("Error reading Package Read and Verified flag rc=%d\n", rc);
     }
     return rc;
 }
 
 /*
  * Write bit Package Download Complete using Comm_Dev I2C
- * bus resource_hdl[in] - handle of the resource
- * return standard t_std_error
  */
-t_std_error sdi_comm_dev_package_download_complete(sdi_resource_hdl_t resource_hdl) {
+static t_std_error sdi_package_download_complete(sdi_resource_hdl_t resource_hdl) {
     t_std_error rc = STD_ERR_OK;
-    uint32_t mbox_control = 0;
+    uint8_t     mbox_control[SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE
+                             + SDI_COMM_DEV_NORTHBOUND_MAILBOX_TIME_THRESHOLD_SIZE] = {0};
+    uint16_t  *tm_ptr = (uint16_t *) (mbox_control + SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE);
 
     rc = sdi_comm_dev_read(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL,
-                           SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, (uint8_t *)&mbox_control);
+                           SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, &mbox_control[0]);
     if (STD_ERR_OK == rc) {
-        mbox_control = mbox_control | SDI_COMM_DEV_BIT_NB_PACKAGE_DOWNLOAD_COMPLETE;
+        STD_BIT_SET(mbox_control[0], SDI_COMM_DEV_BIT_NB_PACKAGE_DOWNLOAD_COMPLETE);
+        *tm_ptr = NORTHBOUND_MAILBOX_TIME_THRESHOLD;
         rc = sdi_comm_dev_write(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL,
-                                SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, (uint8_t *)&mbox_control);
-    }
+                                sizeof(mbox_control), &mbox_control[0]);
 
     if (STD_ERR_OK != rc) {
         SDI_DEVICE_ERRMSG_LOG("Error writing Package Download Complete flag rc=%d\n", rc);
+    }
+    } else {
+        SDI_DEVICE_ERRMSG_LOG("Error reading Package Download Complete flag rc=%d\n", rc);
     }
     return rc;
 }
 
 /*
  * Read Chassis Service Tag using Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * regData[out] - pointer to data to be read
- * return standard t_std_error
  */
 t_std_error sdi_comm_dev_read_svc_tag(sdi_resource_hdl_t resource_hdl, uint8_t *regData) {
     t_std_error rc = STD_ERR_OK;
@@ -370,12 +345,8 @@ t_std_error sdi_comm_dev_read_svc_tag(sdi_resource_hdl_t resource_hdl, uint8_t *
 /*
  * Read/Write Host System Firmware Revision using
  * Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * writeFlag [in] - TRUE = write, FALSE = read
- * regData [in/out] - pointer to data to be read/written
- * return standard t_std_error
  */
-t_std_error sdi_comm_dev_read_write_iom_fw_revision(sdi_resource_hdl_t resource_hdl, bool writeFlag, uint8_t *regData) {
+static t_std_error sdi_read_write_iom_fw_revision(sdi_resource_hdl_t resource_hdl, bool writeFlag, uint8_t *regData) {
     t_std_error rc = STD_ERR_OK;
 
     if (writeFlag) {
@@ -393,16 +364,15 @@ t_std_error sdi_comm_dev_read_write_iom_fw_revision(sdi_resource_hdl_t resource_
 /*
  * Write NPU temperature to Comm Dev sensor# 06 using
  * Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * regData[in] - temperature value in Celsius
- * return standard t_std_error
  */
-t_std_error sdi_comm_dev_write_sensor_06_telemetry(sdi_resource_hdl_t resource_hdl, int regData) {
+static t_std_error sdi_write_sensor_06_telemetry(sdi_resource_hdl_t resource_hdl, int input_temperature) {
     t_std_error rc = STD_ERR_OK;
+    uint8_t  temp[SDI_COMM_DEV_SENSOR_06_TELEMETRY_SIZE] = {0};
+    uint16_t* p_temperature = (uint16_t*) &temp[0];
     // Comm_Dev expects temperatures in tenths of degree Celsius, so multiply input value by 10
-    uint16_t temp = regData * 10;
+    *p_temperature = input_temperature * 10;
 
-    rc = sdi_comm_dev_write(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_SENSOR_06_TELEMETRY, SDI_COMM_DEV_SENSOR_06_TELEMETRY_SIZE, (uint8_t *)&temp);
+    rc = sdi_comm_dev_write(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_SENSOR_06_TELEMETRY, SDI_COMM_DEV_SENSOR_06_TELEMETRY_SIZE, &temp[0]);
 
     if (STD_ERR_OK != rc) {
         SDI_DEVICE_ERRMSG_LOG("Error writing temperature sensor data rc=%d\n", rc);
@@ -412,9 +382,6 @@ t_std_error sdi_comm_dev_write_sensor_06_telemetry(sdi_resource_hdl_t resource_h
 
 /*
  * Read Comm Dev Firmware Revision using Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * regData[out] - pointer to data to be read
- * return standard t_std_error
  */
 t_std_error sdi_comm_dev_read_fw_rev(sdi_resource_hdl_t resource_hdl, uint8_t *regData) {
     t_std_error rc = STD_ERR_OK;
@@ -429,19 +396,16 @@ t_std_error sdi_comm_dev_read_fw_rev(sdi_resource_hdl_t resource_hdl, uint8_t *r
 
 /*
  * Read Host System position slot using Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * slot[out] - pointer to data to be read
- * return standard t_std_error
  */
 t_std_error sdi_comm_dev_read_iom_slot(sdi_resource_hdl_t resource_hdl, unsigned int *slot) {
     t_std_error rc = STD_ERR_OK;
-    uint16_t    regData = 0;
+    uint8_t     slot_occupation[SDI_COMM_DEV_IOM_SLOT_OCCUPATION_SIZE] = {0};
 
     *slot = 0;
-    rc = sdi_comm_dev_read(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_IOM_SLOT_OCCUPATION, SDI_COMM_DEV_IOM_SLOT_OCCUPATION_SIZE, (uint8_t *)&regData);
+    rc = sdi_comm_dev_read(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_IOM_SLOT_OCCUPATION, SDI_COMM_DEV_IOM_SLOT_OCCUPATION_SIZE, &slot_occupation[0]);
 
     if (rc == STD_ERR_OK) {
-        *slot = regData & 0x002F;
+        *slot = slot_occupation[0] & 0x002F;
     } else {
         SDI_DEVICE_ERRMSG_LOG("Error reading IOM slot rc=%d\n", rc);
     }
@@ -451,11 +415,8 @@ t_std_error sdi_comm_dev_read_iom_slot(sdi_resource_hdl_t resource_hdl, unsigned
 
 /*
  * Read Host System position slot using Comm_Dev I2C bus
- * resource_hdl[in] - handle of the resource
- * slot[out] - pointer to data to be read
- * return standard t_std_error
  */
-t_std_error sdi_comm_dev_read_platform_info(sdi_resource_hdl_t resource_hdl, sdi_platform_info_t *platform_info) {
+static t_std_error sdi_read_platform_info(sdi_resource_hdl_t resource_hdl, sdi_platform_info_t *platform_info) {
     t_std_error rc = STD_ERR_OK;
 
     memset(platform_info, 0, sizeof(sdi_platform_info_t));
@@ -470,16 +431,108 @@ t_std_error sdi_comm_dev_read_platform_info(sdi_resource_hdl_t resource_hdl, sdi
 
     return rc;
 }
+/*
+ * Flush NorthBound Mailbox using Comm_Dev I2C bus
+ */
+static t_std_error sdi_flush_msg_buffer(sdi_resource_hdl_t resource_hdl) {
+    t_std_error rc = STD_ERR_OK;
+    uint8_t     mbox_control[SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE] = {0};
+
+    rc = sdi_comm_dev_read(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL,
+                           SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, &mbox_control[0]);
+    if (STD_ERR_OK == rc) {
+        STD_BIT_SET(mbox_control[0], SDI_COMM_DEV_BIT_NB_FLUSH_MAILBOX);
+        rc = sdi_comm_dev_write(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL,
+                                SDI_COMM_DEV_VENDOR_INTELLIGENCE_MAILBOX_CONTROL_SIZE, &mbox_control[0]);
+        if (STD_ERR_OK != rc) {
+            SDI_DEVICE_ERRMSG_LOG("Error writing Flush Northbound Mailbox flag rc=%d\n", rc);
+        }
+    } else {
+        SDI_DEVICE_ERRMSG_LOG("Error reading Flush Northbound Mailbox flag rc=%d\n", rc);
+    }
+
+    return rc;
+}
+
+/*
+ * Read Northbound Mailbox buffer ready/not ready using Comm_Dev I2C bus
+ */
+static t_std_error sdi_is_buffer_ready(sdi_resource_hdl_t resource_hdl, bool *ready) {
+    t_std_error rc = STD_ERR_OK;
+    uint8_t     mbox_status[SDI_COMM_DEV_NORTHBOUND_MAILBOX_STATUS_SIZE] = {0};
+
+    *ready = false;
+    rc = sdi_comm_dev_read(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_NORTHBOUND_MAILBOX_STATUS, SDI_COMM_DEV_NORTHBOUND_MAILBOX_STATUS_SIZE, &mbox_status[0]);
+
+    if (rc == STD_ERR_OK) {
+        if (STD_BIT_TEST(mbox_status[0], SDI_COMM_DEV_BIT_NB_PACKAGE_IN_MAILBOX) == 0) {
+            *ready = true;
+        }
+    } else {
+        SDI_DEVICE_ERRMSG_LOG("Error reading Northbound Mailbox Status register rc=%d\n", rc);
+    }
+
+    return rc;
+}
+
+/*
+ * Read Comm dev status Alerts and clear
+ */
+
+static t_std_error sdi_comm_dev_status_check_and_clear(sdi_resource_hdl_t resource_hdl)
+{
+    t_std_error rc = STD_ERR_OK;
+    uint8_t     comm_dev_status[SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_REGISTER_SIZE] = {0};
+
+    rc = sdi_comm_dev_read(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_REGISTER, SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_REGISTER_SIZE, &comm_dev_status[0]);
+
+    if( rc == STD_ERR_OK) {
+        if (STD_BIT_TEST(comm_dev_status[0], SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_BIT_RESET) == 0) {
+            SDI_DEVICE_TRACEMSG_LOG("Comm dev  reports reset Alarm\n");
+        }
+
+        if (STD_BIT_TEST(comm_dev_status[0], SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_BIT_PORT_NOTIFICATION) == 0) {
+            SDI_DEVICE_TRACEMSG_LOG("Comm dev  reports Downlink port notification Alarm\n");
+        }
+
+        if (STD_BIT_TEST(comm_dev_status[0], SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_BIT_NB_TMIEOUT_ALERT) == 0) {
+            SDI_DEVICE_TRACEMSG_LOG("Comm dev reports NB timeout Alarm\n");
+        }
+
+        uint16_t* p_comm_dev_status  = (uint16_t*) &comm_dev_status[0];
+        *p_comm_dev_status = COMM_DEV_STATUS_CLEAR;
+
+        // Clear Alert in comm dev status register
+        rc = sdi_comm_dev_write(resource_hdl, COMM_DEV_I2C_ADDR, SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_REGISTER,
+                SDI_COMM_DEV_VENDOR_INTELLIGENCE_STATUS_REGISTER_SIZE, &comm_dev_status[0]);
+        if (STD_ERR_OK != rc) {
+            SDI_DEVICE_ERRMSG_LOG("Error writing Flush Commdev status Alerts rc=%d\n", rc);
+        }
+
+        // Flush NB mailbox
+        rc = sdi_flush_msg_buffer(resource_hdl);
+        if (STD_ERR_OK != rc) {
+            SDI_DEVICE_ERRMSG_LOG("Error in NB Mailbox msg Flush rc=%d\n", rc);
+        }
+
+    } else {
+        SDI_DEVICE_ERRMSG_LOG("Error reading Commdev Status rc=%d\n", rc);
+    }
+
+    return rc;
+}
 
 /* Callback handlers for Comm_Dev */
 static comm_dev_ctrl_t comm_dev_ctrl = {
-    .read_mbox = sdi_comm_dev_read_mailbox,
-    .write_mbox = sdi_comm_dev_write_mailbox,
-    .write_pckg_read_verif = sdi_comm_dev_package_read_and_verified,
-    .write_pckg_downl_compl = sdi_comm_dev_package_download_complete,
-    .read_platform_info = sdi_comm_dev_read_platform_info,
-    .access_fw_rev = sdi_comm_dev_read_write_iom_fw_revision,
-    .write_temp_sensor = sdi_comm_dev_write_sensor_06_telemetry
+    .read_mbox = sdi_read_mailbox,
+    .write_mbox = sdi_write_mailbox,
+    .write_pckg_read_verif = sdi_package_read_and_verified,
+    .write_pckg_downl_compl = sdi_package_download_complete,
+    .read_platform_info = sdi_read_platform_info,
+    .access_fw_rev = sdi_read_write_iom_fw_revision,
+    .write_temp_sensor = sdi_write_sensor_06_telemetry,
+    .flush_msg_buffer = sdi_flush_msg_buffer,
+    .get_buffer_ready = sdi_is_buffer_ready
 };
 
 /*

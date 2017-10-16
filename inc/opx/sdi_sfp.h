@@ -79,6 +79,8 @@ typedef struct sfp_device {
     bool port_led_control_flag;
     /** port led related data */
     sdi_media_led_t port_led;
+    /** Front panel port or media capability */
+    sdi_media_speed_t  capability;
 } sfp_device_t;
 
 /**

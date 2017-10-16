@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <ctype.h>
 
 /* Delay for accesing phy device
    When phy device is enabled it needs delay before access*/
@@ -64,9 +65,11 @@ enum {
 typedef struct sdi_sfp_reg_info {
     uint_t offset; /* register offset */
     uint_t size; /* register size */
+    bool   printable; /* field contains printable data */
 } sdi_sfp_reg_info_t;
 
 #define SDI_SFP_PADDING_CHAR 0
+#define SDI_SFP_GARBAGE_CHAR_INDICATOR '?'
 
 /* parameter register information strucutre. Parameters should be defined in the
  * same order of sdi_media_param_type_t */
@@ -100,12 +103,12 @@ static sdi_sfp_reg_info_t param_reg_info[] = {
 /* vendor register information structure. Parameters in this structure should be
  * defined in the same order of sdi_media_vendor_info_type_t */
 static sdi_sfp_reg_info_t vendor_reg_info[] = {
-    { SFP_VENDOR_NAME_OFFSET, SDI_MEDIA_MAX_VENDOR_NAME_LEN }, /* for SDI_MEDIA_VENDOR_NAME */
-    { SFP_VENDOR_OUI_OFFSET, SDI_MEDIA_MAX_VENDOR_OUI_LEN }, /* for SDI_MEDIA_VENDOR_OUI */
-    { SFP_VENDOR_SN_OFFSET, SDI_MEDIA_MAX_VENDOR_SERIAL_NUMBER_LEN }, /* for SDI_MEDIA_VENDOR_SN */
-    { SFP_VENDOR_DATE_OFFSET, SDI_MEDIA_MAX_VENDOR_DATE_LEN }, /* for SDI_MEDIA_VENDOR_DATE */
-    { SFP_VENDOR_PN_OFFSET, SDI_MEDIA_MAX_VENDOR_PART_NUMBER_LEN }, /* for SDI_MEDIA_VENDOR_PN */
-    { SFP_VENDOR_REVISION_OFFSET, SDI_MEDIA_MAX_VENDOR_REVISION_LEN } /* for SDI_MEDIA_VENDOR_REVISION */
+    { SFP_VENDOR_NAME_OFFSET, SDI_MEDIA_MAX_VENDOR_NAME_LEN, true }, /* for SDI_MEDIA_VENDOR_NAME */
+    { SFP_VENDOR_OUI_OFFSET, SDI_MEDIA_MAX_VENDOR_OUI_LEN, false }, /* for SDI_MEDIA_VENDOR_OUI */
+    { SFP_VENDOR_SN_OFFSET, SDI_MEDIA_MAX_VENDOR_SERIAL_NUMBER_LEN, true }, /* for SDI_MEDIA_VENDOR_SN */
+    { SFP_VENDOR_DATE_OFFSET, SDI_MEDIA_MAX_VENDOR_DATE_LEN, true }, /* for SDI_MEDIA_VENDOR_DATE */
+    { SFP_VENDOR_PN_OFFSET, SDI_MEDIA_MAX_VENDOR_PART_NUMBER_LEN, true }, /* for SDI_MEDIA_VENDOR_PN */
+    { SFP_VENDOR_REVISION_OFFSET, SDI_MEDIA_MAX_VENDOR_REVISION_LEN, true } /* for SDI_MEDIA_VENDOR_REVISION */
 };
 
 
@@ -1105,7 +1108,17 @@ t_std_error sdi_sfp_tx_control_status_get(sdi_resource_hdl_t resource_hdl,
 t_std_error  sdi_sfp_speed_get(sdi_resource_hdl_t resource_hdl,
                                sdi_media_speed_t *speed)
 {
-    *speed = SDI_MEDIA_SPEED_10G;
+    sdi_device_hdl_t sfp_device = NULL;
+    sfp_device_t *sfp_priv_data = NULL;
+
+    STD_ASSERT(resource_hdl != NULL);
+    STD_ASSERT(speed != NULL);
+
+    sfp_device = (sdi_device_hdl_t)resource_hdl;
+    sfp_priv_data = (sfp_device_t *)sfp_device->private_data;
+    STD_ASSERT(sfp_priv_data != NULL);
+
+    *speed = sfp_priv_data->capability;
     return STD_ERR_OK;
 }
 
@@ -1206,6 +1219,7 @@ t_std_error sdi_sfp_vendor_info_get(sdi_resource_hdl_t resource_hdl,
     uint_t offset = 0;
     uint8_t *buf_ptr = NULL;
     uint8_t data_buf[SDI_MAX_NAME_LEN];
+    bool printable = false;
 
     STD_ASSERT(resource_hdl != NULL);
     STD_ASSERT(vendor_info != NULL);
@@ -1218,6 +1232,7 @@ t_std_error sdi_sfp_vendor_info_get(sdi_resource_hdl_t resource_hdl,
 
     offset = vendor_reg_info[vendor_info_type].offset;
     data_len = vendor_reg_info[vendor_info_type].size;
+    printable = vendor_reg_info[vendor_info_type].printable;
 
     /* Input buffer size should be greater than or equal to data len*/
     STD_ASSERT(size >= data_len);
@@ -1237,6 +1252,21 @@ t_std_error sdi_sfp_vendor_info_get(sdi_resource_hdl_t resource_hdl,
     sdi_sfp_module_deselect(sfp_priv_data);
 
     if(rc == STD_ERR_OK) {
+        /* If the field is marked printable, then ensure that it contains only
+         * printable characters
+         */
+        if (printable) {
+            for (buf_ptr = &data_buf[0];
+                 buf_ptr < &data_buf[data_len - 1];
+                 buf_ptr++) {
+
+                if (!isprint(*buf_ptr) && *buf_ptr != SDI_SFP_PADDING_CHAR) {
+                    /* Replace with a garbled character indicator */
+                    *buf_ptr = SDI_SFP_GARBAGE_CHAR_INDICATOR;
+                }
+            }
+            *buf_ptr = '\0';
+        }
         /* vendor name, part number, serial number and revision fields contains
          * ASCII characters, left-aligned and padded on the right with ASCII
          * spaces (20h).*/

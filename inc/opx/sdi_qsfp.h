@@ -70,6 +70,7 @@ typedef struct qsfp_device {
                                    used to plugin sfp/sfp+ media*/
     qsfp_category_t  mod_category; /**<media category to distinguish between
                                      QSFP/QSFPPLUS/QSFP28/QSFPDD */
+    sdi_media_speed_t  capability; /**<Front panel port or media capability */
 } qsfp_device_t;
 
 /**

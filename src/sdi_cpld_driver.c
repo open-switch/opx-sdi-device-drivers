@@ -27,6 +27,7 @@
 #include "sdi_i2c_bus_api.h"
 #include "std_error_codes.h"
 #include "std_assert.h"
+#include "std_bit_ops.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,29 +39,25 @@ static t_std_error sdi_cpld_driver_init(sdi_device_hdl_t device_hdl);
 
 /*
  * Read IOM slot using CPLD I2C
- * cpld_device[in] - Handle of the device
- * regData[out] - pointer to data will be filled after read
- * return standard t_std_error
  */
-t_std_error sdi_cpld_get_iom_slot_pos(sdi_device_hdl_t cpld_device, uint8_t *slot) {
+static t_std_error sdi_cpld_get_iom_slot_pos(sdi_device_hdl_t cpld_device, uint8_t *input_slot) {
     t_std_error rc = STD_ERR_OK;
-    int temp = 0;
+    uint8_t slot = 0;
 
     device_i2c_addr.i2c_addr = MASTER_CPLD_I2C_ADDR;
     rc = sdi_smbus_read_byte(cpld_device->bus_hdl, device_i2c_addr, (SDI_CPLD_CTRL1_REGISTER_OFFSET & 0xff),
-            slot, SDI_I2C_FLAG_NONE);
+            &slot, SDI_I2C_FLAG_NONE);
     if (rc != STD_ERR_OK) {
         SDI_DEVICE_ERRMSG_LOG("cpld smbus read failed at addr : %x reg : %x for %s rc : %d",
                               cpld_device->addr, SDI_CPLD_CTRL1_REGISTER_OFFSET, cpld_device->alias, rc);
         return rc;
     }
-    SDI_DEVICE_TRACEMSG_LOG("SMBUS read #offset %x and #data %x\n", SDI_CPLD_CTRL1_REGISTER_OFFSET, *slot);
+    SDI_DEVICE_TRACEMSG_LOG("SMBUS read #offset %x and #data %x\n", SDI_CPLD_CTRL1_REGISTER_OFFSET, slot);
 
-    temp = *slot & SDI_CPLD_CTRL1_BIT_IOM_SLOT_POS;
-    if (temp == 0) {
-        *slot = 0;
+    if (STD_BIT_TEST(slot, SDI_CPLD_CTRL1_BIT_IOM_SLOT_POS)) {
+        *input_slot = 1;
     } else {
-        *slot = 1;
+        *input_slot = 0;
     }
 
     return rc;
@@ -68,30 +65,26 @@ t_std_error sdi_cpld_get_iom_slot_pos(sdi_device_hdl_t cpld_device, uint8_t *slo
 
 /*
  * Read IOM package notify using CPLD I2C
- * cpld_device[in] - Handle of the device
- * regData[out] - pointer to data will be filled after read
- * return standard t_std_error
  */
-t_std_error sdi_cpld_get_iom_pkg_notify(sdi_device_hdl_t cpld_device, bool *presence) {
+static t_std_error sdi_cpld_get_iom_pkg_notify(sdi_device_hdl_t cpld_device, bool *input_presence) {
     t_std_error rc = STD_ERR_OK;
-    uint8_t regData = 0, temp = 0;
+    uint8_t     presence = 0;
 
     device_i2c_addr.i2c_addr = MASTER_CPLD_I2C_ADDR;
     rc = sdi_smbus_read_byte(cpld_device->bus_hdl, device_i2c_addr, (SDI_CPLD_CTRL1_REGISTER_OFFSET & 0xff),
-            &regData, SDI_I2C_FLAG_NONE);
+            &presence, SDI_I2C_FLAG_NONE);
     if (rc != STD_ERR_OK) {
         SDI_DEVICE_ERRMSG_LOG("cpld smbus read failed at addr : %x reg : %x for %s rc : %d",
                               cpld_device->addr, SDI_CPLD_CTRL1_REGISTER_OFFSET, cpld_device->alias, rc);
         return rc;
     }
 
-    SDI_DEVICE_TRACEMSG_LOG("SMBUS read #offset %x and #data %d\n", SDI_CPLD_CTRL1_REGISTER_OFFSET, regData);
+    SDI_DEVICE_TRACEMSG_LOG("SMBUS read #offset %x and #data %d\n", SDI_CPLD_CTRL1_REGISTER_OFFSET, presence);
 
-    temp = regData & SDI_CPLD_CTRL1_BIT_IOM_PACKG_NOTIFY;
-    if (temp == 0) {
-        *presence = false;
+    if (STD_BIT_TEST(presence, SDI_CPLD_CTRL1_BIT_IOM_PACKG_NOTIFY)) {
+        *input_presence = true;
     } else {
-        *presence = true;
+        *input_presence = false;
     }
 
     return rc;
@@ -99,32 +92,29 @@ t_std_error sdi_cpld_get_iom_pkg_notify(sdi_device_hdl_t cpld_device, bool *pres
 
 /*
  * Write IOM booted using CPLD I2C
- * cpld_device[in] - Handle of the device
- * regData[in] - pointer to data will be written
- * return standard t_std_error
  */
-t_std_error sdi_cpld_set_iom_booted(sdi_device_hdl_t cpld_device, bool booted) {
+static t_std_error sdi_cpld_set_iom_booted(sdi_device_hdl_t cpld_device, bool input_booted) {
     t_std_error rc = STD_ERR_OK;
-    uint8_t regData = 0;
+    uint8_t booted = 0;
 
     device_i2c_addr.i2c_addr = MASTER_CPLD_I2C_ADDR;
     rc = sdi_smbus_read_byte(cpld_device->bus_hdl, device_i2c_addr, (SDI_CPLD_CTRL1_REGISTER_OFFSET & 0xff),
-            &regData, SDI_I2C_FLAG_NONE);
+            &booted, SDI_I2C_FLAG_NONE);
     if (rc != STD_ERR_OK) {
         SDI_DEVICE_ERRMSG_LOG("cpld smbus read failed at addr : %x reg : %x for %s rc : %d",
                               cpld_device->addr, SDI_CPLD_CTRL1_REGISTER_OFFSET, cpld_device->alias, rc);
         return rc;
     }
 
-    if (booted) {
-        regData = regData | SDI_CPLD_CTRL1_BIT_IOM_BOOTED;
+    if (input_booted) {
+        STD_BIT_SET(booted, SDI_CPLD_CTRL1_BIT_IOM_BOOTED);
     } else {
-        regData = regData & ~(SDI_CPLD_CTRL1_BIT_IOM_BOOTED);
+        STD_BIT_CLEAR(booted, SDI_CPLD_CTRL1_BIT_IOM_BOOTED);
     }
 
-    rc = sdi_smbus_write_byte(cpld_device->bus_hdl, device_i2c_addr, SDI_CPLD_CTRL1_REGISTER_OFFSET, regData, SDI_I2C_FLAG_NONE);
+    rc = sdi_smbus_write_byte(cpld_device->bus_hdl, device_i2c_addr, SDI_CPLD_CTRL1_REGISTER_OFFSET, booted, SDI_I2C_FLAG_NONE);
 
-    SDI_DEVICE_TRACEMSG_LOG("SMBUS write #offset %x and #data %x\n", SDI_CPLD_CTRL1_REGISTER_OFFSET, regData);
+    SDI_DEVICE_TRACEMSG_LOG("SMBUS write #offset %x and #data %x\n", SDI_CPLD_CTRL1_REGISTER_OFFSET, booted);
 
     return rc;
 }

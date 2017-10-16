@@ -632,7 +632,7 @@ static t_std_error sdi_i2cdev_smbus_execute(sdi_i2c_bus_hdl_t i2c_bus,
                     temp_buf = *(uint8_t *)buffer;
                     temp_word = ((temp_buf << 8) | (commandbuf & 0xff));
                     error = sdi_smbus_write_word(i2cdev_fd,
-                               operation, I2C_SMBUS_BYTE_DATA, (commandbuf >> 8) & 0xff,
+                               operation, I2C_SMBUS_WORD_DATA, (commandbuf >> 8) & 0xff,
                                &temp_word);
                 }
             } else {

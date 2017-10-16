@@ -28,9 +28,9 @@
 #define SDI_CPLD_CTRL1_REGISTER_OFFSET                            0x12
 #define SDI_CPLD_CTRL1_REGISTER_SIZE                              0x01
 
-#define SDI_CPLD_CTRL1_BIT_IOM_SLOT_POS                           0x02
-#define SDI_CPLD_CTRL1_BIT_IOM_BOOTED                             0x08
-#define SDI_CPLD_CTRL1_BIT_IOM_PACKG_NOTIFY                       0x20
-#define SDI_CPLD_CTRL1_BIT_IOM_EVENT_NOTIFY                       0x40
+#define SDI_CPLD_CTRL1_BIT_IOM_SLOT_POS                              1
+#define SDI_CPLD_CTRL1_BIT_IOM_BOOTED                                3
+#define SDI_CPLD_CTRL1_BIT_IOM_PACKG_NOTIFY                          5
+#define SDI_CPLD_CTRL1_BIT_IOM_EVENT_NOTIFY                          6
 
 #endif   /* _SDI_CPLD_DRIVER_ATTR_H_ */

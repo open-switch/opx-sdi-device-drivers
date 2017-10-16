@@ -48,6 +48,14 @@
 #define SDI_DEV_ATTR_SDI_I2CMUX_CHANNEL          "channel"
 
 /**
+ * @def Attribute used for mux address for PCA mux
+ */
+#define SDI_DEV_ATTR_SDI_I2CMUX_ADDRESS          "mux_addr"
+/**
+ * @def Attribute used to select channel for PCA mux
+ */
+#define SDI_DEV_ATTR_SDI_I2CMUX_SELECT            "mux_sel_value"
+/**
  * @}
  */
 

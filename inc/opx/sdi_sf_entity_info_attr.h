@@ -82,6 +82,46 @@
 #define SDI_SF_ENTITY_CURRENT_TYPE                "current_type_bus_name"
 
 /**
+ * @def Attribute used for representing the start address of Manufacturing ID of entity
+ */
+#define SDI_SF_ENTITY_MFG_ID_START_ADDR           "mfg_id_start_addr"
+
+/**
+ * @def Attribute used for representing the end address of Manufacturing ID of entity
+ */
+#define SDI_SF_ENTITY_MFG_ID_END_ADDR             "mfg_id_end_addr"
+
+/**
+ * @def Attribute used for representing the start address of Manufacturing Date of entity
+ */
+#define SDI_SF_ENTITY_MFG_DATE_START_ADDR         "mfg_date_start_addr"
+
+/**
+ * @def Attribute used for representing the end address of Manufacturing Date of entity
+ */
+#define SDI_SF_ENTITY_MFG_DATE_END_ADDR           "mfg_date_end_addr"
+
+/**
+ * @def Attribute used for representing the start address of Serial Number of entity
+ */
+#define SDI_SF_ENTITY_SERIAL_NUMBER_START_ADDR    "serial_number_start_addr"
+
+/**
+ * @def Attribute used for representing the end address of Serial Number of entity
+ */
+#define SDI_SF_ENTITY_SERIAL_NUMBER_END_ADDR      "serial_number_end_addr"
+
+/**
+ * @def Attribute used for representing the start address of Country Code of entity
+ */
+#define SDI_SF_ENTITY_COUNTRY_CODE_START_ADDR     "country_code_start_addr"
+
+/**
+ * @def Attribute used for representing the end address of Country Code of entity
+ */
+#define SDI_SF_ENTITY_COUNTRY_CODE_END_ADDR       "country_code_end_addr"
+
+/**
  * @}
  */
 

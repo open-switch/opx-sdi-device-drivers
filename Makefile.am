@@ -37,7 +37,10 @@ libopx_sdi_device_drivers_la_SOURCES = \
 	src/sdi_tmp75.c \
 	src/sys-interface-drivers/sdi_gpio.c \
 	src/sys-interface-drivers/sdi_i2cdev.c \
-	src/sys-interface-drivers/sdi_sysfs_gpio_helpers.c
+	src/sys-interface-drivers/sdi_sysfs_gpio_helpers.c \
+	src/sdi_i2cmux_pca.c \
+	src/sdi_segment_display.c
+
 
 libopx_sdi_device_drivers_la_LDFLAGS = -lopx_sdi_framework -lopx_common -lopx_logging -lz -lm -lpthread -lrt -version-info 1:1:0
 libopx_sdi_device_drivers_la_CFLAGS = -I$(top_srcdir)/inc/opx -I$(top_srcdir)/inc/opx/eeprom -I$(includedir)/opx

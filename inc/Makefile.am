@@ -36,4 +36,6 @@ noinst_HEADERS = \
 	opx/sdi_sfp_reg.h \
 	opx/sdi_emc2305.h \
 	opx/sdi_i2c_mux_attr.h \
-	opx/sdi_bus_attr.h
+	opx/sdi_bus_attr.h \
+	opx/sdi_i2cmux_pca.h
+

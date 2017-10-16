@@ -1,3 +1,12 @@
+opx-sdi-device-drivers (1.5.2) unstable; urgency=medium
+
+  * Feature: Added manual control of I2C muxes
+  * Feautre: Added manual control of 7-segment displays
+  * Feature: Added optical media types
+  * Bugfix: Filter non-printable characters from strings from optical media adapters
+
+ -- Dell EMC <ops-dev@lists.openswitch.net>  Mon, 16 Oct 2017 11:00:00 -0800
+
 opx-sdi-device-drivers (1.5.0) unstable; urgency=medium
 
   * Feature: Added support for optical media adapter types (QSFP28-DD, depopulated QSFP28-DD, SFP28)

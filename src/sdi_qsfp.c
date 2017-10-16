@@ -409,6 +409,19 @@ static t_std_error sdi_qsfp_register (std_config_node_t node, void *bus_handle,
         qsfp_data->mod_sel_value = strtoul(node_attr, NULL, 0);
     }
 
+    node_attr = std_config_attr_get(node, SDI_MEDIA_PORT_TYPE);
+    if (node_attr != NULL) {
+         if (strcmp(node_attr, SDI_PORT_TYPE_QSFP28) == 0) {
+             qsfp_data->capability = SDI_MEDIA_SPEED_100G;
+         } else if (strcmp(node_attr, SDI_PORT_TYPE_QSFP28_DD) == 0) {
+             qsfp_data->capability = SDI_MEDIA_SPEED_200G;
+         } else {
+             qsfp_data->capability = SDI_MEDIA_SPEED_40G;
+         }
+    } else {
+        qsfp_data->capability = SDI_MEDIA_SPEED_40G;
+    }
+
     node_attr = std_config_attr_get(node, SDI_MEDIA_MODULE_PRESENCE_BUS);
     STD_ASSERT(node_attr != NULL);
     qsfp_data->mod_pres_hdl = sdi_get_pin_group_bus_handle_by_name(node_attr);

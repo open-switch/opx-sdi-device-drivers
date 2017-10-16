@@ -57,10 +57,19 @@ typedef struct sdi_sf_entity_info_device
     uint_t hw_revision_end_addr;
     uint_t service_tag_start_addr;
     uint_t service_tag_end_addr;
+    uint_t mfg_id_start_addr;
+    uint_t mfg_id_end_addr;
+    uint_t mfg_date_start_addr;
+    uint_t mfg_date_end_addr;
+    uint_t serial_number_start_addr;
+    uint_t serial_number_end_addr;
+    uint_t country_code_start_addr;
+    uint_t country_code_end_addr;
     sdi_pin_bus_hdl_t sf_entity_air_flow_status_hdl;
     sdi_pin_bus_hdl_t sf_entity_current_type_hdl;
     uint_t no_of_fans;
     uint_t max_fan_speed;
+    bool ppid_addr_valid;     /* Used in cases where PPID is constructed (hence valid=false) rather than read directly */
 } sdi_sf_entity_info_device_t;
 
 static t_std_error sdi_sf_entity_info_register(std_config_node_t node,
@@ -116,6 +125,34 @@ static void entity_info_populate(sdi_device_hdl_t chip, uint_t start, uint_t end
     return;
 }
 
+/* Date code is three character code derived from part fields*/
+/* Function to construct date code. Result is in-place*/
+
+static void construct_date_code(char* date_str /*Of the form YYMMDD*/)
+{
+    /* Conversions are based on Dell spec*/
+    static const char alphanumeric[] = {'0','1','2','3','4','5','6','7','8','9',
+                          'A','B','C','D','E','F','G','H','I','J','K','L',
+                          'M','N','O','P','Q','R','S','T','U','V','X','Y','Z'};
+
+    uint_t tmp = strlen(date_str);
+    char tmp_str[tmp + 1];
+    safestrncpy(tmp_str, date_str, tmp + 1);
+    date_str[3] = '\0';
+
+    /* Get day and convert */
+    sscanf(tmp_str + 4, "%u", &tmp);
+    date_str[2] = alphanumeric[tmp];
+    tmp_str[4] = '\0';
+
+    /* Get month and convert */
+    sscanf(tmp_str + 2, "%u", &tmp);
+    date_str[1] = alphanumeric[tmp];
+    tmp_str[2] = '\0';
+
+    /* Get last digit of year */
+    date_str[0] = tmp_str[1];
+}
 t_std_error sdi_sf_entity_info_data_get(void *resource_hdl,
                                         sdi_entity_info_t *entity_info)
 {
@@ -131,14 +168,54 @@ t_std_error sdi_sf_entity_info_data_get(void *resource_hdl,
     eeprom_data = (sdi_sf_entity_info_device_t *)chip->private_data;
     STD_ASSERT(eeprom_data != NULL);
 
-    entity_info_populate(chip, eeprom_data->ppid_start_addr,
-                         eeprom_data->ppid_end_addr, entity_info->ppid, SDI_PPID_LEN);
     entity_info_populate(chip, eeprom_data->part_num_start_addr,
                          eeprom_data->part_num_end_addr, entity_info->part_number, SDI_PART_NUM_LEN);
     entity_info_populate(chip, eeprom_data->hw_revision_start_addr,
                          eeprom_data->hw_revision_end_addr, entity_info->hw_revision, SDI_HW_REV_LEN);
     entity_info_populate(chip, eeprom_data->service_tag_start_addr,
                          eeprom_data->service_tag_end_addr, entity_info->service_tag, NAME_MAX);
+    if (eeprom_data->ppid_addr_valid == true)
+    {
+        entity_info_populate(chip, eeprom_data->ppid_start_addr,
+                         eeprom_data->ppid_end_addr, entity_info->ppid, SDI_PPID_LEN);
+    }
+    else
+    {
+        /* PPID needs to be constructed from individual fields*/
+        char *ptr = entity_info->ppid;
+        const uint_t date_code_len = 3;
+
+        uint_t mfg_id_len = 1 + eeprom_data->mfg_id_end_addr
+                               - eeprom_data->mfg_id_start_addr;
+        uint_t mfg_date_len = 1 + eeprom_data->mfg_date_end_addr
+                               - eeprom_data->mfg_date_start_addr;
+        uint_t country_code_len = 1 + eeprom_data->country_code_end_addr
+                               - eeprom_data->country_code_start_addr;
+        uint_t serial_number_len = 1 + eeprom_data->serial_number_end_addr
+                               - eeprom_data->serial_number_start_addr;
+
+        /* PPID format: country code|dell part no|mfg id|date code|serial number|hw rev*/
+
+        entity_info_populate(chip, eeprom_data->country_code_start_addr,
+                         eeprom_data->country_code_end_addr, ptr, country_code_len);
+        ptr += country_code_len;
+
+        safestrncpy(ptr, entity_info->part_number, strlen(entity_info->part_number)+1);
+        ptr += strlen(entity_info->part_number);
+
+        entity_info_populate(chip, eeprom_data->mfg_id_start_addr,
+                         eeprom_data->mfg_id_end_addr, ptr, mfg_id_len);
+        ptr+=mfg_id_len;
+
+        entity_info_populate(chip, eeprom_data->mfg_date_start_addr,
+                         eeprom_data->mfg_date_end_addr, ptr, mfg_date_len);
+        /* Function is in-place */
+        construct_date_code(ptr);
+        ptr += date_code_len;
+
+        entity_info_populate(chip, eeprom_data->serial_number_start_addr,
+                         eeprom_data->serial_number_end_addr, ptr, serial_number_len);
+    }
 
     if (eeprom_data->sf_entity_air_flow_status_hdl != NULL) {
         rc = sdi_pin_read_level(eeprom_data->sf_entity_air_flow_status_hdl, &level);
@@ -193,7 +270,7 @@ static t_std_error sdi_sf_entity_info_register(std_config_node_t node,
                                                void *bus_handle,
                                                sdi_device_hdl_t* device_hdl)
 {
-    char *attr_value = NULL;
+    char *attr_value = NULL, ppid_address_count = 0;
     sdi_device_hdl_t chip = NULL;
     sdi_sf_entity_info_device_t *eeprom_data = NULL;
 
@@ -208,6 +285,7 @@ static t_std_error sdi_sf_entity_info_register(std_config_node_t node,
     eeprom_data = calloc(sizeof(sdi_sf_entity_info_device_t),1);
     STD_ASSERT(eeprom_data != NULL);
 
+    eeprom_data->ppid_addr_valid = false;
     chip->bus_hdl = bus_handle;
 
     /* Get all config attributes */
@@ -257,14 +335,31 @@ static t_std_error sdi_sf_entity_info_register(std_config_node_t node,
 
     attr_value = std_config_attr_get(node, SDI_SF_ENTITY_PPID_START_ADDR);
     if (attr_value != NULL) {
+        ppid_address_count |= 0x01;
         eeprom_data->ppid_start_addr = strtoul(attr_value, NULL, 0);
     }
 
     attr_value = std_config_attr_get(node, SDI_SF_ENTITY_PPID_END_ADDR);
     if (attr_value != NULL) {
+        ppid_address_count |= 0x02;
         eeprom_data->ppid_end_addr = strtoul(attr_value, NULL, 0);
     }
 
+    switch (ppid_address_count) {
+        case 0:
+            eeprom_data->ppid_addr_valid = false;
+            break;
+        case 1:
+            SDI_DEVICE_ERRMSG_LOG("PPID end address unset in device smf config file");
+            return STD_ERR(BOARD, FAIL, ppid_address_count);
+        case 2:
+            SDI_DEVICE_ERRMSG_LOG("PPID start address unset in device smf config file");
+            return STD_ERR(BOARD, FAIL, ppid_address_count);
+        case 3:
+        default:
+            eeprom_data->ppid_addr_valid = true;
+            break;
+    }
     attr_value = std_config_attr_get(node, SDI_SF_ENTITY_AIR_FLOW_STATUS);
     if (attr_value != NULL) {
         eeprom_data->sf_entity_air_flow_status_hdl = sdi_get_pin_bus_handle_by_name(attr_value);
@@ -283,6 +378,46 @@ static t_std_error sdi_sf_entity_info_register(std_config_node_t node,
     attr_value = std_config_attr_get(node, SDI_DEV_ATTR_MAX_SPEED);
     if(attr_value) {
         eeprom_data->max_fan_speed = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_MFG_ID_START_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->mfg_id_start_addr = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_MFG_ID_END_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->mfg_id_end_addr = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_MFG_DATE_START_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->mfg_date_start_addr = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_MFG_DATE_END_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->mfg_date_end_addr = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_SERIAL_NUMBER_START_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->serial_number_start_addr = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_SERIAL_NUMBER_END_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->serial_number_end_addr = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_COUNTRY_CODE_START_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->country_code_start_addr = strtoul(attr_value, NULL, 0);
+    }
+
+    attr_value = std_config_attr_get(node, SDI_SF_ENTITY_COUNTRY_CODE_END_ADDR);
+    if (attr_value != NULL) {
+        eeprom_data->country_code_end_addr = strtoul(attr_value, NULL, 0);
     }
 
     sdi_resource_add(SDI_RESOURCE_ENTITY_INFO, chip->alias,(void*)chip,

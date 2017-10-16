@@ -101,11 +101,6 @@ static const uint8_t fan_config1_reg[] = { EMC2305_FAN0_CFG1_REG,
                                            EMC2305_FAN3_CFG1_REG,
                                            EMC2305_FAN4_CFG1_REG };
 
-static const uint8_t fan_config2_reg[] = { EMC2305_FAN0_CFG2_REG,
-                                           EMC2305_FAN1_CFG2_REG,
-                                           EMC2305_FAN2_CFG2_REG,
-                                           EMC2305_FAN3_CFG2_REG,
-                                           EMC2305_FAN4_CFG2_REG };
 
 /* Pole Edge mapping */
 static const uint8_t pole_edge_mapping[] = { EMC2305_FAN_POLE1_EDGE,
@@ -113,11 +108,6 @@ static const uint8_t pole_edge_mapping[] = { EMC2305_FAN_POLE1_EDGE,
                                              EMC2305_FAN_POLE3_EDGE,
                                              EMC2305_FAN_POLE4_EDGE };
 
-/* Range decode values.RPM ,Range mapping */
-static const uint_t range_rpm_mapping[] = { EMC2305_RANGE0_MIN_RPM,
-                                             EMC2305_RANGE1_MIN_RPM,
-                                             EMC2305_RANGE2_MIN_RPM,
-                                             EMC2305_RANGE3_MIN_RPM };
 
 /* Fan Tach reading register for individual fans */
 static const uint8_t fan_tach_reg[][2] = {
